@@ -35,6 +35,15 @@ const FALLBACK_LABELS = {
   manage_blacklist: "Управление ЧСП",
   give_model: "Выдать модель",
   manage_models: "Каталог моделей",
+  give_weapon: "Выдать оружие",
+  manage_weapons: "Каталог оружия",
+  give_job: "Выдать профессию",
+  manage_jobs: "Каталог профессий",
+  give_qmenu: "Выдать Q-Menu",
+  give_access: "Выдать доступы (пропы / !setmodel)",
+  view_promos: "Просмотр промокодов",
+  manage_promos: "Управление промокодами",
+  messenger: "Мессенджер (чат)",
   manage_zbt_access: "Доступ ЗБТ",
   manage_users: "Пользователи сайта",
   manage_permissions: "Права рангов",
@@ -43,7 +52,8 @@ const FALLBACK_LABELS = {
 const FALLBACK_GROUPS = [
   { key: "view", title: "Просмотр", perms: ["view_players", "view_profile", "view_bans", "view_stats", "view_blacklist", "view_admin_logs"] },
   { key: "actions", title: "Действия с игроками", perms: ["kick", "ban", "unban", "adminmode", "give_money", "set_rank"] },
-  { key: "content", title: "Контент и ЧСП", perms: ["manage_blacklist", "give_model", "manage_models"] },
+  { key: "content", title: "Контент и ЧСП", perms: ["manage_blacklist", "give_model", "manage_models", "give_weapon", "manage_weapons", "give_job", "manage_jobs", "give_qmenu", "give_access", "view_promos", "manage_promos"] },
+  { key: "comms", title: "Коммуникации", perms: ["messenger"] },
   { key: "admin", title: "Администрирование (опасное)", perms: ["manage_zbt_access", "manage_users", "manage_permissions", "raw_console"] }
 ];
 function labelFor(key) {

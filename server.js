@@ -30,6 +30,7 @@ import playerAccessRoutes from "./routes/player_access.js";
 import serverSyncRoutes from "./routes/server_sync.js";
 import messengerRoutes from "./routes/messenger.js";
 import zbtAccessRoutes from "./routes/zbt_access.js";
+import promosRoutes from "./routes/promos.js";
 import locksRoutes from "./routes/locks.js";
 import { WebSocketServer } from "ws";
 import { hasPerm } from "./lib/roles.js";
@@ -203,6 +204,7 @@ app.use(playerQmenuRoutes());
 app.use(playerAccessRoutes());
 app.use(messengerRoutes());
 app.use(zbtAccessRoutes());
+app.use(promosRoutes());
 app.use(serverSyncRoutes(cfg));
 app.use(locksRoutes());
 app.use((err, req, res, _next) => {

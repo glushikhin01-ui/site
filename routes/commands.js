@@ -43,7 +43,8 @@ const ALLOWED_COMMANDS = [
   { perm: "give_access", pattern: /^(panel_setprops|panel_setmodelaccess)\b/ },
   
   { perm: "give_job", pattern: /^ba adddonate\b/ },
-  { perm: "give_job", pattern: /^ba (removedonate|takedonate|del_donate)\b/ }
+  { perm: "give_job", pattern: /^ba (removedonate|takedonate|del_donate)\b/ },
+  { perm: "manage_promos", pattern: /^promo_/ }
 ];
 function resolveCommandPerm(text) {
   const t = text.replace(/\s+/g, " ").toLowerCase().trim();

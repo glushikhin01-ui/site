@@ -11,6 +11,24 @@ function normalizePropsAmount(value) {
   return Math.max(0, Math.min(100000, n));
 }
 
+let _accessTableEnsured = false;
+async function ensureAccessTable() {
+  if (_accessTableEnsured) return;
+  try {
+    await db().query(`CREATE TABLE IF NOT EXISTS panel_player_access (
+      steamid32 VARCHAR(32) NOT NULL,
+      props_extra INT UNSIGNED NOT NULL DEFAULT 0,
+      setmodel TINYINT(1) NOT NULL DEFAULT 0,
+      issued_by VARCHAR(64) NOT NULL DEFAULT '',
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (steamid32)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    _accessTableEnsured = true;
+  } catch (e) {
+    console.error("ensureAccessTable failed:", e.message);
+  }
+}
+
 async function pushConsole(text) {
   try {
     await withQueueLock(async () => {
@@ -28,6 +46,7 @@ function playerAccessRoutes() {
 
   r.get("/api/player_access", authGuard, requirePerm("view_profile"), async (req, res) => {
     try {
+      await ensureAccessTable();
       const steamid32 = String(req.query.steamid32 || "").trim();
       if (!steamid32) return res.json({ ok: true, item: { props_extra: 0, setmodel: false } });
       const [rows] = await db().query(
@@ -53,6 +72,7 @@ function playerAccessRoutes() {
 
   r.post("/api/player_access", authGuard, requirePerm("give_access"), async (req, res) => {
     try {
+      await ensureAccessTable();
       const data = req.body || {};
       const action = String(data.action || "save").trim();
       const steamid32 = String(data.steamid32 || "").trim();

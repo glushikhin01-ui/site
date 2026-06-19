@@ -2,6 +2,25 @@ import { Router } from "express";
 import { db } from "../lib/db.js";
 import { authGuard } from "../lib/guard.js";
 import { steamid64ToSteamid, decodeIfNeeded, stripPort } from "../lib/helpers.js";
+
+let _syncAccessTableEnsured = false;
+async function ensureAccessTableSync() {
+  if (_syncAccessTableEnsured) return;
+  try {
+    await db().query(`CREATE TABLE IF NOT EXISTS panel_player_access (
+      steamid32 VARCHAR(32) NOT NULL,
+      props_extra INT UNSIGNED NOT NULL DEFAULT 0,
+      setmodel TINYINT(1) NOT NULL DEFAULT 0,
+      issued_by VARCHAR(64) NOT NULL DEFAULT '',
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (steamid32)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    _syncAccessTableEnsured = true;
+  } catch (e) {
+    console.error("ensureAccessTableSync failed:", e.message);
+  }
+}
+
 function serverSyncRoutes(cfg) {
   const r = Router();
   function requirePassword(req, res) {
@@ -310,6 +329,95 @@ function serverSyncRoutes(cfg) {
       res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
     } catch (e) {
       console.error("jobs_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+  r.all("/api/player_access_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      await ensureAccessTableSync();
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "get").trim();
+
+      if (action === "get") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        if (!steamid32) return res.json({ ok: true, item: { props_extra: 0, setmodel: 0 } });
+        const [rows] = await pool.query(
+          "SELECT props_extra, setmodel FROM panel_player_access WHERE steamid32 = ? LIMIT 1",
+          [steamid32]
+        );
+        const row = rows[0] || {};
+        return res.json({
+          ok: true,
+          item: {
+            props_extra: parseInt(row.props_extra || 0, 10),
+            setmodel: row.setmodel ? 1 : 0
+          }
+        });
+      }
+
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("player_access_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+  // ============== PROMO CODES SYNC ==============
+  r.all("/api/promos_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list").trim();
+
+      if (action === "list") {
+        const [rows] = await pool.query(
+          `SELECT id, code, donate, money, max_uses, expiration_date, is_active
+           FROM panel_promocodes WHERE is_active = 1`
+        );
+        return res.json({ ok: true, items: rows });
+      }
+
+      if (action === "has_used") {
+        const promoId = parseInt(params.promo_id || 0, 10);
+        const steamid64 = String(params.steamid64 || "").trim();
+        if (!promoId || !steamid64) return res.json({ ok: true, used: false });
+        const [rows] = await pool.query(
+          "SELECT 1 FROM panel_promo_usage WHERE promo_id=? AND steamid64=? LIMIT 1",
+          [promoId, steamid64]
+        );
+        return res.json({ ok: true, used: rows.length > 0 });
+      }
+
+      if (action === "record_use") {
+        const promoId = parseInt(params.promo_id || 0, 10);
+        const steamid64 = String(params.steamid64 || "").trim();
+        const steamid32 = String(params.steamid32 || "").trim();
+        const nickname = String(params.nickname || "").trim();
+        if (!promoId || !steamid64) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        await pool.query(
+          "INSERT IGNORE INTO panel_promo_usage (promo_id, steamid64, steamid32, nickname) VALUES (?,?,?,?)",
+          [promoId, steamid64, steamid32, nickname]
+        );
+        return res.json({ ok: true });
+      }
+
+      if (action === "get_usage_count") {
+        const promoId = parseInt(params.promo_id || 0, 10);
+        if (!promoId) return res.json({ ok: true, count: 0 });
+        const [rows] = await pool.query(
+          "SELECT COUNT(*) AS cnt FROM panel_promo_usage WHERE promo_id=?",
+          [promoId]
+        );
+        return res.json({ ok: true, count: rows[0]?.cnt || 0 });
+      }
+
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("promos_sync error:", e.message);
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
