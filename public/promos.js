@@ -1,216 +1,439 @@
 (async () => {
   const $ = (id) => document.getElementById(id);
-  const apiStatus = $("apiStatus"), tbody = $("tbody"), err = $("err");
-  const qInput = $("q"), refreshBtn = $("refresh"), addPromoBtn = $("addPromoBtn");
-  const statsRow = $("statsRow"), totalPromos = $("totalPromos"), activePromos = $("activePromos"), totalUses = $("totalUses");
-  const usageModal = $("usageModal"), usageCode = $("usageCode"), usageTbody = $("usageTbody"), usageClose = $("usageClose");
+  const apiStatus = $("apiStatus");
+  const tbody = $("tbody");
+  const err = $("err");
+  const qInput = $("q");
+  const refreshBtn = $("refresh");
+  const addPromoBtn = $("addPromoBtn");
+  const statsRow = $("statsRow");
+  const totalPromos = $("totalPromos");
+  const activePromos = $("activePromos");
+  const totalUses = $("totalUses");
+  const usageModal = $("usageModal");
+  const usageCode = $("usageCode");
+  const usageTbody = $("usageTbody");
+  const usageClose = $("usageClose");
+  const usageCloseX = $("usageCloseX");
 
   let allItems = [];
+  let loading = false;
+
+  const ERROR_TEXT = {
+    BAD_CODE: "Код должен быть от 2 до 64 символов: A-Z, 0-9 или _",
+    DUPLICATE_CODE: "Такой промокод уже есть",
+    BAD_REWARD: "Укажите хотя бы одну награду",
+    BAD_ID: "Промокод не найден",
+    NOT_FOUND: "Промокод не найден",
+    DB_ERROR: "Ошибка базы данных",
+    NO_PERM: "Недостаточно прав",
+    LOCKED: "Действие заблокировано"
+  };
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[ch]));
+  }
 
   function toast(ok, title, text) {
-    if (window.UI && UI.toast) { UI.toast({ ok, title, text }); return; }
-    const wrap = $("toastWrap"), el = document.createElement("div");
+    if (window.UI && UI.toast) {
+      UI.toast({ ok, title, text });
+      return;
+    }
+    const wrap = $("toastWrap");
+    if (!wrap) return;
+    const el = document.createElement("div");
     el.className = "toast " + (ok ? "ok" : "bad");
-    el.innerHTML = `<div class="toastTitle">${title}</div><div class="toastText">${text}</div>`;
-    wrap.appendChild(el); setTimeout(() => el.remove(), 3000);
+    el.innerHTML = `<div class="toastTitle">${esc(title)}</div><div class="toastText">${esc(text)}</div>`;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3200);
   }
 
-  function modal({ title, body, onOk }) {
-    const ov = document.createElement("div"); ov.className = "modalOverlay";
-    const card = document.createElement("div"); card.className = "modalCard";
-    card.innerHTML = `<div class="modalTitle">${title}</div><div class="modalBody"></div><div class="modalActions"><button class="btn" id="mCancel">Отмена</button><button class="btn blue" id="mOk">OK</button></div>`;
-    card.querySelector(".modalBody").appendChild(body); ov.appendChild(card); document.body.appendChild(ov);
-    card.querySelector("#mCancel").onclick = () => ov.remove();
-    card.querySelector("#mOk").onclick = async () => { try { await onOk(); ov.remove(); } catch (e) { toast(false, "Ошибка", e.message || "Ошибка"); } };
+  async function confirmAction(opts) {
+    if (window.UI && UI.confirm) return UI.confirm(opts);
+    return window.confirm(`${opts.title || "Подтвердите"}\n${opts.text || ""}`);
   }
 
-  function esc(s) { return (s ?? "").toString().replaceAll("&", "&").replaceAll("<", "<").replaceAll(">", ">").replaceAll('"', """).replaceAll("'", "'"); }
+  function lockBody(lock) {
+    document.body.style.overflow = lock ? "hidden" : "";
+  }
+
+  function modal({ title, body, okText = "Сохранить", cancelText = "Отмена", danger = false, onOk }) {
+    const ov = document.createElement("div");
+    ov.className = "modalOverlay promoModalOverlay";
+
+    const card = document.createElement("div");
+    card.className = "modalCard promoModalCard";
+    card.innerHTML = `
+      <div class="promoModalHead">
+        <div class="modalTitle">${esc(title)}</div>
+        <button class="promoModalX" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modalBody"></div>
+      <div class="modalActions">
+        <button class="btn" type="button" data-act="cancel">${esc(cancelText)}</button>
+        <button class="btn ${danger ? "danger" : "blue"}" type="button" data-act="ok">${esc(okText)}</button>
+      </div>`;
+    card.querySelector(".modalBody").appendChild(body);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    lockBody(true);
+
+    const okBtn = card.querySelector('[data-act="ok"]');
+    const close = () => {
+      document.removeEventListener("keydown", onKey);
+      ov.remove();
+      if (!usageModal || usageModal.style.display === "none") lockBody(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") close();
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) okBtn.click();
+    };
+
+    card.querySelector('[data-act="cancel"]').onclick = close;
+    card.querySelector(".promoModalX").onclick = close;
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+    document.addEventListener("keydown", onKey);
+
+    okBtn.onclick = async () => {
+      const oldText = okBtn.textContent;
+      okBtn.disabled = true;
+      okBtn.textContent = "Сохраняю...";
+      try {
+        await onOk();
+        close();
+      } catch (e) {
+        okBtn.disabled = false;
+        okBtn.textContent = oldText;
+        toast(false, "Ошибка", normalizeError(e));
+      }
+    };
+
+    setTimeout(() => {
+      const first = card.querySelector("input, select, textarea, button");
+      if (first) first.focus();
+    }, 30);
+
+    return { close, ov, card };
+  }
 
   async function apiJson(url, opts) {
-    const r = await fetch(url, Object.assign({ cache: "no-store", credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } }, opts || {}));
+    const headers = Object.assign(
+      { "X-Requested-With": "XMLHttpRequest" },
+      opts?.headers || {}
+    );
+    const r = await fetch(url, Object.assign({ cache: "no-store", credentials: "include", headers }, opts || {}));
     const j = await r.json().catch(() => null);
-    if (!r.ok || !j || !j.ok) throw new Error(j?.error || "HTTP " + r.status);
+    if (!r.ok || !j || !j.ok) {
+      const msg = j?.error || "HTTP " + r.status;
+      const e = new Error(ERROR_TEXT[msg] || msg);
+      e.code = msg;
+      throw e;
+    }
     return j;
   }
 
-  function fmtDate(s) {
-    if (!s) return "—";
-    if (typeof s === "number") return new Date(s * 1000).toLocaleString("ru-RU");
-    return String(s);
+  function normalizeError(e) {
+    const msg = e?.message || e?.code || "Ошибка";
+    return ERROR_TEXT[msg] || msg;
   }
 
-  function renderReward(item) {
-    const parts = [];
-    if (item.donate > 0) parts.push(`<span style="color:#f59e0b">💎 ${Number(item.donate).toLocaleString("ru-RU")}</span>`);
-    if (item.money > 0) parts.push(`<span style="color:#22c55e">💰 ${Number(item.money).toLocaleString("ru-RU")}</span>`);
-    return parts.join(" + ") || "—";
+  function num(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function normalizePromo(p) {
+    return {
+      ...p,
+      id: num(p.id),
+      donate: num(p.donate),
+      money: num(p.money),
+      max_uses: num(p.max_uses),
+      used_count: num(p.used_count),
+      is_active: Number(p.is_active) === 1 || p.is_active === true
+    };
+  }
+
+  function parseDateValue(s) {
+    if (!s) return null;
+    if (typeof s === "number") return new Date(s * 1000);
+    const raw = String(s).trim();
+    if (!raw) return null;
+    const d = new Date(raw.replace(" ", "T"));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function fmtDate(s) {
+    const d = parseDateValue(s);
+    if (!d) return s ? String(s) : "—";
+    return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+  }
+
+  function toDatetimeLocal(s) {
+    if (!s) return "";
+    return String(s).replace(" ", "T").slice(0, 16);
   }
 
   function isExpired(dateStr) {
-    if (!dateStr) return false;
-    return new Date(dateStr) < new Date();
+    const d = parseDateValue(dateStr);
+    return !!d && d.getTime() < Date.now();
+  }
+
+  function isLimitReached(p) {
+    return p.max_uses > 0 && p.used_count >= p.max_uses;
+  }
+
+  function getState(p) {
+    if (isExpired(p.expiration_date)) return { cls: "expired", text: "Истёк", icon: "⏰" };
+    if (isLimitReached(p)) return { cls: "limit", text: "Лимит", icon: "🚫" };
+    if (p.is_active) return { cls: "active", text: "Активен", icon: "✅" };
+    return { cls: "off", text: "Выключен", icon: "⏸" };
+  }
+
+  function rewardHtml(p) {
+    const parts = [];
+    if (p.donate > 0) parts.push(`<span class="promoReward donate">💎 ${p.donate.toLocaleString("ru-RU")}</span>`);
+    if (p.money > 0) parts.push(`<span class="promoReward money">💰 ${p.money.toLocaleString("ru-RU")}</span>`);
+    return parts.length ? `<div class="promoRewards">${parts.join("")}</div>` : "—";
+  }
+
+  function limitHtml(p) {
+    if (p.max_uses <= 0) return `<div class="promoLimit"><b>∞</b><span>без лимита</span></div>`;
+    const pct = Math.max(0, Math.min(100, Math.round((p.used_count / p.max_uses) * 100)));
+    return `
+      <div class="promoLimit">
+        <b>${p.used_count.toLocaleString("ru-RU")} / ${p.max_uses.toLocaleString("ru-RU")}</b>
+        <span class="promoProgress"><i style="width:${pct}%"></i></span>
+      </div>`;
+  }
+
+  function createBtn(text, title, cls, onClick) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `btn small ${cls || ""}`.trim();
+    b.textContent = text;
+    b.title = title || text;
+    b.addEventListener("click", async () => {
+      if (b.disabled) return;
+      try {
+        b.disabled = true;
+        await onClick(b);
+      } catch (e) {
+        toast(false, "Ошибка", normalizeError(e));
+      } finally {
+        b.disabled = false;
+      }
+    });
+    return b;
   }
 
   function render(items) {
     const filter = (qInput.value || "").toLowerCase().trim();
-    let filtered = items;
-    if (filter) filtered = items.filter(p => (p.code || "").toLowerCase().includes(filter));
+    let filtered = items.map(normalizePromo);
+    if (filter) filtered = filtered.filter((p) => (p.code || "").toLowerCase().includes(filter));
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="banEmpty">Нет промокодов</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="banEmpty">${filter ? "Ничего не найдено" : "Промокодов пока нет"}</td></tr>`;
       return;
     }
 
     tbody.innerHTML = "";
     for (const p of filtered) {
+      const state = getState(p);
       const tr = document.createElement("tr");
-      const expired = isExpired(p.expiration_date);
-      const active = !!p.is_active && !expired;
-      const usedCount = parseInt(p.used_count || 0, 10);
-      const limitText = p.max_uses > 0 ? `${usedCount} / ${p.max_uses}` : "∞";
-      const statusHtml = expired
-        ? `<span style="color:#ef4444">⏰ Истёк</span>`
-        : active
-          ? `<span style="color:#22c55e">✅ Активен</span>`
-          : `<span style="color:#6b7280">⏸ Выключен</span>`;
-      const expText = p.expiration_date ? fmtDate(p.expiration_date) : "Бессрочный";
-
+      tr.className = "promoRow";
       tr.innerHTML = `
-        <td><code style="font-size:15px;font-weight:700;color:var(--accent)">${esc(p.code)}</code><div class="muted" style="font-size:11px">Создал: ${esc(p.created_by || "—")}</div></td>
-        <td>${renderReward(p)}</td>
-        <td>${limitText}</td>
-        <td>${expText}</td>
-        <td><strong>${usedCount}</strong></td>
-        <td>${statusHtml}</td>
-        <td class="nowrap"></td>
-      `;
+        <td>
+          <div class="promoCodeCell">
+            <code>${esc(p.code)}</code>
+            <button class="promoCopy" type="button" title="Скопировать код">⧉</button>
+          </div>
+          <div class="muted" style="font-size:11px">Создал: ${esc(p.created_by || "—")}</div>
+        </td>
+        <td>${rewardHtml(p)}</td>
+        <td>${limitHtml(p)}</td>
+        <td>${p.expiration_date ? fmtDate(p.expiration_date) : "Бессрочный"}</td>
+        <td><strong>${p.used_count.toLocaleString("ru-RU")}</strong></td>
+        <td><span class="promoStatus ${state.cls}">${state.icon} ${state.text}</span></td>
+        <td><div class="promoActions"></div></td>`;
 
-      const actions = tr.querySelector("td:last-child");
-
-      // Кнопка "Подробнее"
-      const infoBtn = document.createElement("button");
-      infoBtn.className = "btn small";
-      infoBtn.textContent = "📊";
-      infoBtn.title = "Кто активировал";
-      infoBtn.onclick = () => showUsage(p);
-      actions.appendChild(infoBtn);
-
-      // Кнопка "Вкл/Выкл"
-      const toggleBtn = document.createElement("button");
-      toggleBtn.className = "btn small";
-      toggleBtn.textContent = active ? "⏸" : "▶️";
-      toggleBtn.title = active ? "Выключить" : "Включить";
-      toggleBtn.onclick = async () => {
-        await apiJson("./api/promos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle", id: p.id }) });
-        toast(true, "OK", active ? "Промокод выключен" : "Промокод включён");
-        await load();
+      tr.querySelector(".promoCopy").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(p.code);
+          toast(true, "Скопировано", p.code);
+        } catch {
+          toast(false, "Ошибка", "Не удалось скопировать");
+        }
       };
-      actions.appendChild(toggleBtn);
 
-      // Кнопка "Редактировать"
-      const editBtn = document.createElement("button");
-      editBtn.className = "btn small";
-      editBtn.textContent = "✏️";
-      editBtn.title = "Редактировать";
-      editBtn.onclick = () => showEditModal(p);
-      actions.appendChild(editBtn);
-
-      // Кнопка "Сбросить использования"
-      const resetBtn = document.createElement("button");
-      resetBtn.className = "btn small";
-      resetBtn.textContent = "🔄";
-      resetBtn.title = "Сбросить использования";
-      resetBtn.onclick = async () => {
-        await apiJson("./api/promos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset_usage", id: p.id }) });
-        toast(true, "OK", "Использования сброшены");
-        await load();
-      };
-      actions.appendChild(resetBtn);
-
-      // Кнопка "Удалить"
-      const delBtn = document.createElement("button");
-      delBtn.className = "btn small danger";
-      delBtn.textContent = "🗑️";
-      delBtn.title = "Удалить";
-      delBtn.onclick = () => {
-        modal({
-          title: "Удалить промокод",
-          body: Object.assign(document.createElement("div"), { innerHTML: `Удалить промокод <strong>${esc(p.code)}</strong>? Все данные об активациях тоже удалятся.` }),
-          onOk: async () => {
-            await apiJson("./api/promos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: p.id }) });
-            toast(true, "OK", "Промокод удалён");
-            await load();
-          }
+      const actions = tr.querySelector(".promoActions");
+      actions.appendChild(createBtn("Активации", "Кто активировал", "", () => showUsage(p)));
+      actions.appendChild(createBtn(p.is_active ? "Выкл" : "Вкл", p.is_active ? "Выключить" : "Включить", "", async () => {
+        await apiJson("./api/promos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "toggle", id: p.id })
         });
-      };
-      actions.appendChild(delBtn);
+        toast(true, "Готово", p.is_active ? "Промокод выключен" : "Промокод включён");
+        await load();
+      }));
+      actions.appendChild(createBtn("Изм.", "Редактировать", "", () => showPromoForm(p)));
+      actions.appendChild(createBtn("Сброс", "Сбросить активации", "", async () => {
+        const ok = await confirmAction({
+          title: "Сбросить активации?",
+          text: `У промокода ${p.code} будут удалены все записи активаций.`,
+          okText: "Сбросить",
+          cancelText: "Отмена",
+          danger: true,
+          icon: "↺"
+        });
+        if (!ok) return;
+        await apiJson("./api/promos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reset_usage", id: p.id })
+        });
+        toast(true, "Готово", "Активации сброшены");
+        await load();
+      }));
+      actions.appendChild(createBtn("Удалить", "Удалить", "danger", async () => {
+        const ok = await confirmAction({
+          title: "Удалить промокод?",
+          text: `Промокод ${p.code} и все его активации будут удалены без восстановления.`,
+          okText: "Удалить",
+          cancelText: "Отмена",
+          danger: true,
+          icon: "🗑️"
+        });
+        if (!ok) return;
+        await apiJson("./api/promos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", id: p.id })
+        });
+        toast(true, "Готово", "Промокод удалён");
+        await load();
+      }));
 
       tbody.appendChild(tr);
     }
   }
 
   function updateStats(items) {
-    const total = items.length;
-    const active = items.filter(p => p.is_active && !isExpired(p.expiration_date)).length;
-    const uses = items.reduce((s, p) => s + parseInt(p.used_count || 0, 10), 0);
-    totalPromos.textContent = total;
-    activePromos.textContent = active;
-    totalUses.textContent = uses;
+    const normalized = items.map(normalizePromo);
+    const total = normalized.length;
+    const active = normalized.filter((p) => p.is_active && !isExpired(p.expiration_date) && !isLimitReached(p)).length;
+    const uses = normalized.reduce((s, p) => s + p.used_count, 0);
+    totalPromos.textContent = total.toLocaleString("ru-RU");
+    activePromos.textContent = active.toLocaleString("ru-RU");
+    totalUses.textContent = uses.toLocaleString("ru-RU");
     statsRow.style.display = "";
   }
 
   async function load() {
+    if (loading) return;
+    loading = true;
     apiStatus.textContent = "API: загрузка...";
     err.style.display = "none";
+    refreshBtn.disabled = true;
     try {
       const j = await apiJson("./api/promos");
-      allItems = j.items || [];
+      allItems = (j.items || []).map(normalizePromo);
       render(allItems);
       updateStats(allItems);
       apiStatus.textContent = "API: OK";
     } catch (e) {
       apiStatus.textContent = "API: ERROR";
-      err.textContent = e.message || "Ошибка загрузки";
+      err.textContent = normalizeError(e);
       err.style.display = "";
+      tbody.innerHTML = `<tr><td colspan="7" class="banEmpty">Ошибка загрузки</td></tr>`;
       toast(false, "Ошибка", "Не удалось загрузить промокоды");
+    } finally {
+      refreshBtn.disabled = false;
+      loading = false;
     }
   }
 
-  function showEditModal(p) {
+  function field(label, id, type, value, hint = "", extra = "") {
+    return `
+      <label class="promoField">
+        <span>${esc(label)}</span>
+        <input class="modalInput" id="${esc(id)}" type="${esc(type)}" value="${esc(value ?? "")}" ${extra} />
+        ${hint ? `<small>${esc(hint)}</small>` : ""}
+      </label>`;
+  }
+
+  function showPromoForm(p = null) {
+    const isEdit = !!p;
+    if (p) p = normalizePromo(p);
     const wrap = document.createElement("div");
+    wrap.className = "promoForm";
     wrap.innerHTML = `
-      <div class="muted" style="margin-bottom:12px">Редактирование: <strong>${esc(p.code)}</strong></div>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Донат-рубли</span>
-        <input class="modalInput" id="eDonate" type="number" min="0" value="${p.donate || 0}" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Игровые деньги</span>
-        <input class="modalInput" id="eMoney" type="number" min="0" value="${p.money || 0}" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Макс. активаций (0 = без лимита)</span>
-        <input class="modalInput" id="eMaxUses" type="number" min="0" value="${p.max_uses || 0}" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Дата истечения (пусто = бессрочный)</span>
-        <input class="modalInput" id="eExpDate" type="datetime-local" value="${p.expiration_date ? p.expiration_date.replace(' ', 'T').slice(0, 16) : ''}" /></label>
-    `;
+      ${isEdit ? `<div class="promoFormNotice">Редактирование: <strong>${esc(p.code)}</strong></div>` : ""}
+      <div class="promoFormGrid">
+        ${!isEdit ? field("Код промокода", "pCode", "text", "", "A-Z, 0-9, _, минимум 2 символа", 'maxlength="64" autocomplete="off" style="text-transform:uppercase"') : ""}
+        ${field("Донат-рубли", "pDonate", "number", p?.donate ?? 0, "0 = не выдавать", 'min="0" step="1"')}
+        ${field("Игровые деньги", "pMoney", "number", p?.money ?? 0, "0 = не выдавать", 'min="0" step="1"')}
+        ${field("Макс. активаций", "pMaxUses", "number", p?.max_uses ?? 0, "0 = без лимита", 'min="0" step="1"')}
+        ${field("Дата истечения", "pExpDate", "datetime-local", toDatetimeLocal(p?.expiration_date), "Пусто = бессрочный")}
+      </div>
+      <label class="uiCheck promoActiveCheck">
+        <input id="pActive" type="checkbox" ${!isEdit || p.is_active ? "checked" : ""} />
+        <span>Промокод включён</span>
+      </label>`;
+
     modal({
-      title: "Редактировать промокод",
+      title: isEdit ? "Редактировать промокод" : "Создать промокод",
       body: wrap,
+      okText: isEdit ? "Сохранить" : "Создать",
       onOk: async () => {
-        const donate = parseInt(wrap.querySelector("#eDonate").value, 10) || 0;
-        const money = parseInt(wrap.querySelector("#eMoney").value, 10) || 0;
-        const maxUses = parseInt(wrap.querySelector("#eMaxUses").value, 10) || 0;
-        const expRaw = wrap.querySelector("#eExpDate").value;
-        const expDate = expRaw ? expRaw.replace("T", " ") + ":00" : null;
-        await apiJson("./api/promos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", id: p.id, donate, money, max_uses: maxUses, expiration_date: expDate }) });
-        toast(true, "OK", "Промокод обновлён");
+        let code = p?.code;
+        if (!isEdit) {
+          code = (wrap.querySelector("#pCode").value || "").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+          wrap.querySelector("#pCode").value = code;
+          if (!code || code.length < 2 || code.length > 64) throw new Error(ERROR_TEXT.BAD_CODE);
+        }
+        const donate = Math.max(0, parseInt(wrap.querySelector("#pDonate").value, 10) || 0);
+        const money = Math.max(0, parseInt(wrap.querySelector("#pMoney").value, 10) || 0);
+        if (donate === 0 && money === 0) throw new Error(ERROR_TEXT.BAD_REWARD);
+        const maxUses = Math.max(0, parseInt(wrap.querySelector("#pMaxUses").value, 10) || 0);
+        const expRaw = wrap.querySelector("#pExpDate").value;
+        const expiration_date = expRaw ? expRaw.replace("T", " ") + ":00" : null;
+        const is_active = wrap.querySelector("#pActive").checked;
+        await apiJson("./api/promos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: isEdit ? "update" : "create",
+            id: p?.id,
+            code,
+            donate,
+            money,
+            max_uses: maxUses,
+            expiration_date,
+            is_active
+          })
+        });
+        toast(true, "Готово", isEdit ? "Промокод обновлён" : `Промокод ${code} создан`);
         await load();
       }
     });
   }
 
   async function showUsage(p) {
+    p = normalizePromo(p);
     usageCode.textContent = p.code;
     usageTbody.innerHTML = `<tr><td colspan="3" class="banEmpty">Загрузка...</td></tr>`;
     usageModal.style.display = "flex";
+    lockBody(true);
     try {
-      const j = await apiJson(`./api/promos/usage?promo_id=${p.id}`);
+      const j = await apiJson(`./api/promos/usage?promo_id=${encodeURIComponent(p.id)}`);
       const items = j.items || [];
       if (!items.length) {
         usageTbody.innerHTML = `<tr><td colspan="3" class="banEmpty">Никто ещё не активировал</td></tr>`;
@@ -219,56 +442,39 @@
       usageTbody.innerHTML = "";
       for (const u of items) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${esc(u.nickname || "—")}</td><td><code>${esc(u.steamid64 || u.steamid32 || "—")}</code></td><td>${fmtDate(u.used_at)}</td>`;
+        tr.innerHTML = `
+          <td>${esc(u.nickname || "—")}</td>
+          <td><code>${esc(u.steamid64 || u.steamid32 || "—")}</code></td>
+          <td>${fmtDate(u.used_at)}</td>`;
         usageTbody.appendChild(tr);
       }
-    } catch {
-      usageTbody.innerHTML = `<tr><td colspan="3" class="banEmpty">Ошибка загрузки</td></tr>`;
+    } catch (e) {
+      usageTbody.innerHTML = `<tr><td colspan="3" class="banEmpty">${esc(normalizeError(e))}</td></tr>`;
     }
   }
 
-  usageClose.onclick = () => { usageModal.style.display = "none"; };
-  usageModal.onclick = (e) => { if (e.target === usageModal) usageModal.style.display = "none"; };
+  function hideUsage() {
+    usageModal.style.display = "none";
+    if (!document.querySelector(".promoModalOverlay")) lockBody(false);
+  }
 
-  addPromoBtn.onclick = () => {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `
-      <label style="display:block;margin-bottom:8px"><span class="muted">Код промокода (A-Z, 0-9, _)</span>
-        <input class="modalInput" id="pCode" placeholder="SUMMER2026" style="text-transform:uppercase" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Донат-рубли</span>
-        <input class="modalInput" id="pDonate" type="number" min="0" value="0" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Игровые деньги</span>
-        <input class="modalInput" id="pMoney" type="number" min="0" value="0" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Макс. активаций (0 = без лимита)</span>
-        <input class="modalInput" id="pMaxUses" type="number" min="0" value="0" /></label>
-      <label style="display:block;margin-bottom:8px"><span class="muted">Дата истечения (пусто = бессрочный)</span>
-        <input class="modalInput" id="pExpDate" type="datetime-local" /></label>
-    `;
-    modal({
-      title: "Создать промокод",
-      body: wrap,
-      onOk: async () => {
-        const code = (wrap.querySelector("#pCode").value || "").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
-        if (!code || code.length < 2) throw new Error("Укажите код (мин. 2 символа)");
-        const donate = parseInt(wrap.querySelector("#pDonate").value, 10) || 0;
-        const money = parseInt(wrap.querySelector("#pMoney").value, 10) || 0;
-        if (donate === 0 && money === 0) throw new Error("Укажите хотя бы одну награду");
-        const maxUses = parseInt(wrap.querySelector("#pMaxUses").value, 10) || 0;
-        const expRaw = wrap.querySelector("#pExpDate").value;
-        const expDate = expRaw ? expRaw.replace("T", " ") + ":00" : null;
-        await apiJson("./api/promos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", code, donate, money, max_uses: maxUses, expiration_date: expDate }) });
-        toast(true, "OK", `Промокод ${code} создан!`);
-        await load();
-      }
-    });
+  usageClose.onclick = hideUsage;
+  if (usageCloseX) usageCloseX.onclick = hideUsage;
+  usageModal.onclick = (e) => { if (e.target === usageModal) hideUsage(); };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && usageModal.style.display !== "none") hideUsage();
+  });
+
+  addPromoBtn.onclick = () => showPromoForm();
+  refreshBtn.onclick = async () => {
+    await load();
+    toast(true, "Обновлено", "Данные актуальны");
   };
-
-  refreshBtn.onclick = () => { load(); toast(true, "Обновление", "Данные обновлены"); };
 
   let searchTimer = null;
   qInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => render(allItems), 200);
+    searchTimer = setTimeout(() => render(allItems), 120);
   });
 
   await load();

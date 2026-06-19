@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../lib/db.js";
 import { authGuard } from "../lib/guard.js";
 import { steamid64ToSteamid, decodeIfNeeded, stripPort } from "../lib/helpers.js";
+import { ensurePromoTables, isExpired, normalizeCode } from "./promos.js";
 
 let _syncAccessTableEnsured = false;
 async function ensureAccessTableSync() {
@@ -369,16 +370,48 @@ function serverSyncRoutes(cfg) {
   r.all("/api/promos_sync", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
+      await ensurePromoTables();
       const pool = db();
       const params = { ...req.query, ...req.body };
       const action = String(params.action || "list").trim();
 
       if (action === "list") {
         const [rows] = await pool.query(
-          `SELECT id, code, donate, money, max_uses, expiration_date, is_active
-           FROM panel_promocodes WHERE is_active = 1`
+          `SELECT
+             p.id, p.code, p.donate, p.money, p.max_uses, p.expiration_date, p.is_active,
+             COUNT(pu.id) AS used_count
+           FROM panel_promocodes p
+           LEFT JOIN panel_promo_usage pu ON pu.promo_id = p.id
+           WHERE p.is_active = 1
+             AND (p.expiration_date IS NULL OR p.expiration_date = '' OR p.expiration_date >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s'))
+           GROUP BY p.id, p.code, p.donate, p.money, p.max_uses, p.expiration_date, p.is_active
+           HAVING (p.max_uses = 0 OR used_count < p.max_uses)
+           ORDER BY p.created_at DESC, p.id DESC`
         );
         return res.json({ ok: true, items: rows });
+      }
+
+      if (action === "check") {
+        const code = normalizeCode(params.code);
+        if (!code) return res.status(400).json({ ok: false, error: "BAD_CODE" });
+        const [rows] = await pool.query(
+          `SELECT p.*, COUNT(pu.id) AS used_count
+           FROM panel_promocodes p
+           LEFT JOIN panel_promo_usage pu ON pu.promo_id = p.id
+           WHERE p.code = ?
+           GROUP BY p.id, p.code, p.donate, p.money, p.max_uses, p.expiration_date, p.is_active,
+             p.created_by, p.created_at, p.updated_at
+           LIMIT 1`,
+          [code]
+        );
+        const promo = rows[0];
+        if (!promo) return res.json({ ok: true, valid: false, error: "NOT_FOUND" });
+        if (!promo.is_active) return res.json({ ok: true, valid: false, error: "INACTIVE", item: promo });
+        if (isExpired(promo.expiration_date)) return res.json({ ok: true, valid: false, error: "EXPIRED", item: promo });
+        if (promo.max_uses > 0 && Number(promo.used_count || 0) >= Number(promo.max_uses)) {
+          return res.json({ ok: true, valid: false, error: "LIMIT_REACHED", item: promo });
+        }
+        return res.json({ ok: true, valid: true, item: promo });
       }
 
       if (action === "has_used") {
@@ -393,16 +426,66 @@ function serverSyncRoutes(cfg) {
       }
 
       if (action === "record_use") {
-        const promoId = parseInt(params.promo_id || 0, 10);
+        const promoIdRaw = parseInt(params.promo_id || 0, 10);
+        const code = normalizeCode(params.code);
         const steamid64 = String(params.steamid64 || "").trim();
-        const steamid32 = String(params.steamid32 || "").trim();
-        const nickname = String(params.nickname || "").trim();
-        if (!promoId || !steamid64) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
-        await pool.query(
-          "INSERT IGNORE INTO panel_promo_usage (promo_id, steamid64, steamid32, nickname) VALUES (?,?,?,?)",
-          [promoId, steamid64, steamid32, nickname]
-        );
-        return res.json({ ok: true });
+        const steamid32 = String(params.steamid32 || "").trim().slice(0, 32);
+        const nickname = String(params.nickname || "").trim().slice(0, 64);
+        if ((!promoIdRaw && !code) || !steamid64) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          const [promos] = await conn.query(
+            `SELECT * FROM panel_promocodes WHERE ${promoIdRaw ? "id = ?" : "code = ?"} LIMIT 1 FOR UPDATE`,
+            [promoIdRaw || code]
+          );
+          const promo = promos[0];
+          if (!promo) {
+            await conn.rollback();
+            return res.json({ ok: true, recorded: false, error: "NOT_FOUND" });
+          }
+          if (!promo.is_active) {
+            await conn.rollback();
+            return res.json({ ok: true, recorded: false, error: "INACTIVE", promo_id: promo.id });
+          }
+          if (isExpired(promo.expiration_date)) {
+            await conn.rollback();
+            return res.json({ ok: true, recorded: false, error: "EXPIRED", promo_id: promo.id });
+          }
+          const [already] = await conn.query(
+            "SELECT 1 FROM panel_promo_usage WHERE promo_id=? AND steamid64=? LIMIT 1",
+            [promo.id, steamid64]
+          );
+          if (already.length) {
+            await conn.rollback();
+            return res.json({ ok: true, recorded: false, error: "ALREADY_USED", promo_id: promo.id });
+          }
+          if (promo.max_uses > 0) {
+            const [cntRows] = await conn.query("SELECT COUNT(*) AS cnt FROM panel_promo_usage WHERE promo_id=?", [promo.id]);
+            if (Number(cntRows[0]?.cnt || 0) >= Number(promo.max_uses)) {
+              await conn.rollback();
+              return res.json({ ok: true, recorded: false, error: "LIMIT_REACHED", promo_id: promo.id });
+            }
+          }
+          await conn.query(
+            "INSERT INTO panel_promo_usage (promo_id, steamid64, steamid32, nickname) VALUES (?,?,?,?)",
+            [promo.id, steamid64, steamid32 || null, nickname || null]
+          );
+          await conn.commit();
+          return res.json({
+            ok: true,
+            recorded: true,
+            promo_id: promo.id,
+            code: promo.code,
+            reward: { donate: Number(promo.donate || 0), money: Number(promo.money || 0) }
+          });
+        } catch (e) {
+          await conn.rollback().catch(() => {});
+          throw e;
+        } finally {
+          conn.release();
+        }
       }
 
       if (action === "get_usage_count") {
@@ -412,7 +495,7 @@ function serverSyncRoutes(cfg) {
           "SELECT COUNT(*) AS cnt FROM panel_promo_usage WHERE promo_id=?",
           [promoId]
         );
-        return res.json({ ok: true, count: rows[0]?.cnt || 0 });
+        return res.json({ ok: true, count: Number(rows[0]?.cnt || 0) });
       }
 
       res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });

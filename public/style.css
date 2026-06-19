@@ -2485,7 +2485,6 @@ select[name=user_role]:focus {
   display: none !important;
 }
 .modalOverlay {
-  display: flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
@@ -7260,5 +7259,263 @@ body {
   .banSteam,
   .banReasonText {
     max-width: none;
+  }
+}
+
+/* ===== Promo codes page fixes ===== */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 18px;
+}
+.statCard {
+  padding: 18px;
+}
+.statNum {
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1;
+  font-weight: 950;
+  color: var(--accent);
+}
+.statLabel {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .45px;
+}
+.promoRow td {
+  background: rgba(255,255,255,.012);
+}
+.promoRow:hover td {
+  background: rgba(var(--accent-rgb), .045) !important;
+}
+.promoCodeCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.promoCodeCell code {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: .25px;
+  overflow-wrap: anywhere;
+}
+.promoCopy {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255,255,255,.035);
+  color: var(--muted);
+  cursor: pointer;
+}
+.promoCopy:hover {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), .45);
+  background: rgba(var(--accent-rgb), .10);
+}
+.promoRewards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.promoReward,
+.promoStatus {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+.promoReward.donate {
+  color: #fbbf24;
+  border-color: rgba(251,191,36,.35);
+  background: rgba(251,191,36,.10);
+}
+.promoReward.money {
+  color: #86efac;
+  border-color: rgba(34,197,94,.35);
+  background: rgba(34,197,94,.10);
+}
+.promoStatus.active {
+  color: #86efac;
+  border-color: rgba(34,197,94,.35);
+  background: rgba(34,197,94,.10);
+}
+.promoStatus.off {
+  color: var(--muted);
+  background: rgba(255,255,255,.035);
+}
+.promoStatus.expired,
+.promoStatus.limit {
+  color: #fca5a5;
+  border-color: rgba(239,68,68,.38);
+  background: rgba(239,68,68,.10);
+}
+.promoLimit {
+  min-width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.promoLimit b {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 950;
+}
+.promoLimit span:not(.promoProgress) {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.promoProgress {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.075);
+  border: 1px solid rgba(255,255,255,.06);
+}
+.promoProgress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+}
+.promoActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  min-width: 280px;
+}
+.promoActions .btn.small {
+  min-width: 0 !important;
+  white-space: nowrap;
+}
+.promoActions .btn.small.danger::before {
+  display: none !important;
+  content: none !important;
+}
+.promoModalOverlay {
+  padding: 18px;
+  overflow: auto;
+  align-items: center;
+}
+.promoModalCard {
+  width: min(620px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 24px !important;
+}
+.promoModalHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.promoModalHead .modalTitle {
+  margin-bottom: 0;
+}
+.promoModalX {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(255,255,255,.04);
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+}
+.promoModalX:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+  background: rgba(255,255,255,.075);
+}
+.promoFormGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.promoField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.promoField span {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 850;
+}
+.promoField small,
+.promoFormNotice {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.promoFormNotice {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+.promoActiveCheck {
+  margin-top: 12px;
+}
+#usageModal {
+  padding: 18px;
+}
+#usageModal .modalCard {
+  width: min(760px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 24px !important;
+}
+#usageModal .modalTitle {
+  overflow-wrap: anywhere;
+}
+#usageModal .tableWrap {
+  margin-top: 8px;
+  max-height: min(460px, 60vh);
+  overflow: auto;
+  border-radius: 18px;
+}
+#usageModal .table {
+  min-width: 0 !important;
+}
+#usageModal .table th,
+#usageModal .table td {
+  padding: 12px 14px;
+}
+#usageModal .modalActions {
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  .statsRow,
+  .promoFormGrid {
+    grid-template-columns: 1fr;
+  }
+  .promoActions {
+    min-width: 0;
+  }
+  .promoModalCard,
+  #usageModal .modalCard {
+    padding: 18px !important;
   }
 }

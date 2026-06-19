@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#eab308">
   <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
   <link rel="stylesheet" href="fonts.css?v=3" />
-  <link rel="stylesheet" href="style.css?v=28" />
+  <link rel="stylesheet" href="style.css?v=29" />
 </head>
 <body>
 
@@ -94,7 +94,10 @@
     <!-- Модалка использования -->
     <div id="usageModal" class="modalOverlay" style="display:none">
       <div class="modalCard" style="max-width:600px">
-        <div class="modalTitle">Активации промокода: <span id="usageCode"></span></div>
+        <div class="promoModalHead">
+          <div class="modalTitle">Активации промокода: <span id="usageCode"></span></div>
+          <button class="promoModalX" type="button" id="usageCloseX" aria-label="Закрыть">×</button>
+        </div>
         <div class="modalBody">
           <div class="tableWrap">
             <table class="table">
@@ -112,6 +115,6 @@
 
 <script src="ui.js?v=10"></script>
 <script src="auth.js?v=3"></script>
-<script src="promos.js?v=1"></script>
+<script src="promos.js?v=2"></script>
 </body>
 </html>

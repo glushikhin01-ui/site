@@ -1,6 +1,6 @@
-const CACHE = "arizona-static-v18";
+const CACHE = "arizona-static-v19";
 const STATIC = [
-  "/style.css?v=28",
+  "/style.css?v=29",
   "/ui.js?v=10",
   "/auth.js?v=3",
   "/fonts.css?v=3",
