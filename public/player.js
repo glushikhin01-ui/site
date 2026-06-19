@@ -239,16 +239,18 @@
   cspBtn.onclick=()=>{ if(cspBtn.disabled) return; const reasonBox=document.createElement("textarea"); reasonBox.className="modalTextarea"; reasonBox.placeholder="Причина занесения в ЧСП (можно оставить пусто)"; reasonBox.rows=4; modal({ title:"Занесение в ЧСП", body:reasonBox, onOk: async()=>{ const r=(reasonBox.value||"").trim(); const params=new URLSearchParams(); params.append("action","add"); params.append("steamid64",String(player.steamid64||"")); params.append("ip",String(player.ip||"")); params.append("nickname",String(player.nick||"")); params.append("reason",r); const rr=await fetch("./api/chsp_action",{method:"POST",headers:{"X-Requested-With":"XMLHttpRequest","Content-Type":"application/x-www-form-urlencoded"},body:params.toString(),cache:"no-store",credentials:"include"}); const jj=await rr.json().catch(()=>null); if(!rr.ok||!jj||!jj.ok) throw new Error(jj?.error||"HTTP "+rr.status); toast(true,"Успех","Игрок занесен в ЧСП"); }}); };
   cspRemoveBtn.onclick=()=>{ if(cspRemoveBtn.disabled) return; const div=document.createElement("div"); div.innerHTML=`<div class="muted">Подтвердите действие</div><div style="margin-top:10px"><div><strong>Игрок:</strong> ${escapeHtml(player.nick)}</div><div style="margin-top:6px"><strong>Вынести из ЧСП</strong></div></div>`; modal({ title:"Вынесение ЧСП", body:div, onOk: async()=>{ const params=new URLSearchParams(); params.append("action","remove"); params.append("steamid64",String(player.steamid64||"")); params.append("ip",String(player.ip||"")); const rr=await fetch("./api/chsp_action",{method:"POST",headers:{"X-Requested-With":"XMLHttpRequest","Content-Type":"application/x-www-form-urlencoded"},body:params.toString(),cache:"no-store",credentials:"include"}); const jj=await rr.json().catch(()=>null); if(!rr.ok||!jj||!jj.ok) throw new Error(jj?.error||"HTTP "+rr.status); toast(true,"OK","Игрок вынесен из ЧСП"); setTimeout(load,600);} }); };
   
-  const tabProfile=document.getElementById("tabProfile"), tabModels=document.getElementById("tabModels"), tabWeapons=document.getElementById("tabWeapons"), tabJobs=document.getElementById("tabJobs"), tabQmenu=document.getElementById("tabQmenu");
-  const panelProfile=document.getElementById("panelProfile"), panelModels=document.getElementById("panelModels"), panelWeapons=document.getElementById("panelWeapons"), panelJobs=document.getElementById("panelJobs"), panelQmenu=document.getElementById("panelQmenu");
-  let modelsLoadedOnce=false, weaponsLoadedOnce=false, jobsLoadedOnce=false, qmenuLoadedOnce=false;
+  const tabProfile=document.getElementById("tabProfile"), tabModels=document.getElementById("tabModels"), tabWeapons=document.getElementById("tabWeapons"), tabJobs=document.getElementById("tabJobs"), tabAccess=document.getElementById("tabAccess"), tabQmenu=document.getElementById("tabQmenu");
+  const panelProfile=document.getElementById("panelProfile"), panelModels=document.getElementById("panelModels"), panelWeapons=document.getElementById("panelWeapons"), panelJobs=document.getElementById("panelJobs"), panelAccess=document.getElementById("panelAccess"), panelQmenu=document.getElementById("panelQmenu");
+  let modelsLoadedOnce=false, weaponsLoadedOnce=false, jobsLoadedOnce=false, accessLoadedOnce=false, qmenuLoadedOnce=false;
   const canSeeModelsNow=()=> hasPerm("give_model")||hasPerm("manage_models");
   const canSeeWeaponsNow=()=> hasPerm("give_weapon")||hasPerm("manage_weapons");
   const canSeeJobsNow=()=> hasPerm("give_job")||hasPerm("manage_jobs");
   const canSeeQmenuNow=()=> hasPerm("give_qmenu");
+  const canSeeAccessNow=()=> hasPerm("give_access");
   function syncVisibility(){ const canM=canSeeModelsNow(); if(tabModels) tabModels.style.display=canM?"":"none"; if(panelModels) panelModels.style.display=canM?"":"none"; if(!canM && panelModels?.classList.contains("active")) setActiveTab("profile");
     const canW=canSeeWeaponsNow(); if(tabWeapons) tabWeapons.style.display=canW?"":"none"; if(panelWeapons) panelWeapons.style.display=canW?"":"none"; if(!canW && panelWeapons?.classList.contains("active")) setActiveTab("profile");
     const canJ=canSeeJobsNow(); if(tabJobs) tabJobs.style.display=canJ?"":"none"; if(panelJobs) panelJobs.style.display=canJ?"":"none"; if(!canJ && panelJobs?.classList.contains("active")) setActiveTab("profile");
+    const canA=canSeeAccessNow(); if(tabAccess) tabAccess.style.display=canA?"":"none"; if(panelAccess) panelAccess.style.display=canA?"":"none"; if(!canA && panelAccess?.classList.contains("active")) setActiveTab("profile");
     const canQ=canSeeQmenuNow(); if(tabQmenu) tabQmenu.style.display=canQ?"":"none"; if(panelQmenu) panelQmenu.style.display=canQ?"":"none"; if(!canQ && panelQmenu?.classList.contains("active")) setActiveTab("profile");
   }
   window.addEventListener("perms:updated", syncVisibility);
@@ -258,26 +260,31 @@
     if(name==="weapons" && !canSeeWeaponsNow()) return;
     if(name==="jobs" && !canSeeJobsNow()) return;
     if(name==="qmenu" && !canSeeQmenuNow()) return;
-    const isProfile=name==="profile", isModels=name==="models", isWeapons=name==="weapons", isJobs=name==="jobs", isQmenu=name==="qmenu";
+    if(name==="access" && !canSeeAccessNow()) return;
+    const isProfile=name==="profile", isModels=name==="models", isWeapons=name==="weapons", isJobs=name==="jobs", isAccess=name==="access", isQmenu=name==="qmenu";
     tabProfile.classList.toggle("active",isProfile);
     if(tabModels) tabModels.classList.toggle("active",isModels);
     if(tabWeapons) tabWeapons.classList.toggle("active",isWeapons);
     if(tabJobs) tabJobs.classList.toggle("active",isJobs);
+    if(tabAccess) tabAccess.classList.toggle("active",isAccess);
     if(tabQmenu) tabQmenu.classList.toggle("active",isQmenu);
     panelProfile.classList.toggle("active",isProfile);
     if(panelModels) panelModels.classList.toggle("active",isModels);
     if(panelWeapons) panelWeapons.classList.toggle("active",isWeapons);
     if(panelJobs) panelJobs.classList.toggle("active",isJobs);
+    if(panelAccess) panelAccess.classList.toggle("active",isAccess);
     if(panelQmenu) panelQmenu.classList.toggle("active",isQmenu);
     if(isModels && !modelsLoadedOnce){ modelsLoadedOnce=true; loadModelsTab().catch(()=>{}); }
     if(isWeapons && !weaponsLoadedOnce){ weaponsLoadedOnce=true; loadWeaponsTab().catch(()=>{}); }
     if(isJobs && !jobsLoadedOnce){ jobsLoadedOnce=true; loadJobsTab().catch(()=>{}); }
+    if(isAccess && !accessLoadedOnce){ accessLoadedOnce=true; loadAccessTab().catch(()=>{}); }
     if(isQmenu && !qmenuLoadedOnce){ qmenuLoadedOnce=true; loadQmenuTab().catch(()=>{}); }
   }
   if(tabProfile) tabProfile.onclick=()=>setActiveTab("profile");
   if(tabModels) tabModels.onclick=()=>setActiveTab("models");
   if(tabWeapons) tabWeapons.onclick=()=>setActiveTab("weapons");
   if(tabJobs) tabJobs.onclick=()=>setActiveTab("jobs");
+  if(tabAccess) tabAccess.onclick=()=>setActiveTab("access");
   if(tabQmenu) tabQmenu.onclick=()=>setActiveTab("qmenu");
   syncVisibility(); setTimeout(syncVisibility,0);
   function fmtBytes(n){ n=Number(n||0); if(!n) return "—"; const units=["B","KB","MB","GB"]; let i=0; while(n>=1024&&i<units.length-1){ n/=1024; i++; } return (i===0?Math.round(n):n.toFixed(1))+" "+units[i]; }
@@ -308,6 +315,13 @@
   if(jobSearch){ let t=null; jobSearch.addEventListener("input",()=>{ clearTimeout(t); t=setTimeout(()=>{ if(panelJobs&&panelJobs.classList.contains("active")) loadJobsTab().catch(()=>{}); },250); }); }
   if(showHiddenJobs) showHiddenJobs.addEventListener("change",()=>{ if(panelJobs&&panelJobs.classList.contains("active")) loadJobsTab().catch(()=>{}); });
   if(addJobBtn) addJobBtn.addEventListener("click",()=>{ if(!hasPerm("manage_jobs")) return toast(false,"Ошибка","Нет прав"); const wrap=document.createElement("div"); wrap.innerHTML=`<input class="modalInput" id="jTitle" placeholder="Название профессии" /><input class="modalInput" id="jCmd" placeholder="Команда / UID профессии (например supervisor_job)" style="margin-top:10px" />`; modal({ title:"Добавить профессию", body:wrap, onOk: async()=>{ const title=(wrap.querySelector("#jTitle")?.value||"").trim(); const job_command=(wrap.querySelector("#jCmd")?.value||"").trim(); if(!job_command) throw new Error("Укажи команду профессии"); await apiJson("./api/jobs",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"add",title,job_command})}); toast(true,"OK","Профессия добавлена"); await loadJobsTab(); }}); });
+
+
+  const accessPropsInput=document.getElementById("accessPropsInput"), accessSetmodelCheck=document.getElementById("accessSetmodelCheck"), saveAccessBtn=document.getElementById("saveAccessBtn"), clearAccessBtn=document.getElementById("clearAccessBtn"), playerAccessTbody=document.getElementById("playerAccessTbody");
+  async function loadAccessTab(){ if(!player) return; const res=await apiJson("./api/player_access?steamid32="+encodeURIComponent(player.steamid||"")); renderPlayerAccess(res.item||{}); }
+  function renderPlayerAccess(item){ if(accessPropsInput) accessPropsInput.value=String(parseInt(item.props_extra||0,10)||0); if(accessSetmodelCheck) accessSetmodelCheck.checked=!!item.setmodel; if(!playerAccessTbody) return; const props=parseInt(item.props_extra||0,10)||0; const sm=!!item.setmodel; const by=item.issued_by||"—"; const when=item.updated_at? new Date(item.updated_at*1000).toLocaleString("ru-RU"):"—"; playerAccessTbody.innerHTML=`<tr><td><strong>+${esc(props)}</strong></td><td>${sm?"✅ Разрешено":"—"}</td><td>${esc(by)}</td><td>${esc(when)}</td></tr>`; }
+  if(saveAccessBtn) saveAccessBtn.onclick=async()=>{ if(!hasPerm("give_access")) return toast(false,"Ошибка","Нет прав"); const props_extra=Math.max(0,Math.min(100000,parseInt(accessPropsInput?.value||"0",10)||0)); const setmodel=!!(accessSetmodelCheck&&accessSetmodelCheck.checked); await apiJson("./api/player_access",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"save",steamid32:player.steamid,props_extra,setmodel})}); toast(true,"OK","Доступы сохранены"); await loadAccessTab(); };
+  if(clearAccessBtn) clearAccessBtn.onclick=()=>{ if(!hasPerm("give_access")) return toast(false,"Ошибка","Нет прав"); modal({ title:"Сбросить доступы", body:Object.assign(document.createElement("div"),{textContent:"Сбросить дополнительные пропы и доступ к !setmodel у игрока?"}), onOk:async()=>{ await apiJson("./api/player_access",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"clear",steamid32:player.steamid})}); toast(true,"OK","Доступы сброшены"); await loadAccessTab(); }}); };
 
   const giveQmenuBtn=document.getElementById("giveQmenuBtn"), giveQmenuPlusBtn=document.getElementById("giveQmenuPlusBtn"), playerQmenuTbody=document.getElementById("playerQmenuTbody");
   async function loadQmenuTab(){ if(!player) return; const res = await apiJson("./api/player_qmenu?steamid32="+encodeURIComponent(player.steamid||"")); renderPlayerQmenu(res.items||[]); }

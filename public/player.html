@@ -86,6 +86,7 @@
           <button class="tabBtn" id="tabModels" data-perm="give_model">Модели</button>
           <button class="tabBtn" id="tabWeapons" data-perm="give_weapon">Оружие</button>
           <button class="tabBtn" id="tabJobs" data-perm="give_job">Профессии</button>
+          <button class="tabBtn" id="tabAccess" data-perm="give_access">Доступы</button>
           <button class="tabBtn" id="tabQmenu" data-perm="give_qmenu">Q-Menu</button>
         </div>
 
@@ -279,6 +280,53 @@
           </div>
         </div>
 
+        <div class="tabPanel" id="panelAccess">
+          <div class="modelGrid">
+            <div class="cardIn outlineBlue">
+              <div class="h2">Доступы игрока</div>
+              <div class="muted" style="margin-top:6px">Персональная выдача дополнительных пропов и доступа к команде !setmodel</div>
+
+              <div class="rows" style="margin-top:15px">
+                <div class="row rowPlus">
+                  <div class="k">Дополнительные пропы</div>
+                  <div class="v"><input id="accessPropsInput" class="input" type="number" min="0" max="100000" step="1" placeholder="0" style="max-width:180px"></div>
+                </div>
+                <div class="row rowPlus">
+                  <div class="k">Модели (!setmodel)</div>
+                  <div class="v">
+                    <label class="uiCheck" style="padding:8px 12px; display:inline-flex">
+                      <input type="checkbox" id="accessSetmodelCheck" />
+                      <span>Разрешить игроку команду !setmodel</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tools" style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap">
+                <button class="btn green" id="saveAccessBtn" data-perm="give_access" data-lock-perm="give_access">Сохранить</button>
+                <button class="btn danger" id="clearAccessBtn" data-perm="give_access" data-lock-perm="give_access">Сбросить доступы</button>
+              </div>
+            </div>
+
+            <div class="cardIn outlineBlue">
+              <div class="h2">Текущие значения</div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Пропы</th>
+                    <th>!setmodel</th>
+                    <th>Выдал / изменил</th>
+                    <th>Когда</th>
+                  </tr></thead>
+                  <tbody id="playerAccessTbody">
+                    <tr><td colspan="4" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="tabPanel" id="panelQmenu">
           <div class="modelGrid">
             <div class="cardIn outlineBlue">
@@ -318,7 +366,7 @@
 
 <script src="ui.js?v=10"></script>
 <script src="auth.js?v=3"></script>
-<script src="player.js?v=5"></script>
+<script src="player.js?v=6"></script>
 <script src="lock_notice.js?v=1"></script>
 </body>
 </html>

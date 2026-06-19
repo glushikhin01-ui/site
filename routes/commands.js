@@ -40,6 +40,7 @@ const ALLOWED_COMMANDS = [
   { perm: "give_weapon", pattern: /^(giveweapon|removeweapon)\b/ },
   { perm: "give_job", pattern: /^(givejob|removejob)\b/ },
   { perm: "give_qmenu", pattern: /^(giveqmenu|removeqmenu)\b/ },
+  { perm: "give_access", pattern: /^(panel_setprops|panel_setmodelaccess)\b/ },
   
   { perm: "give_job", pattern: /^ba adddonate\b/ },
   { perm: "give_job", pattern: /^ba (removedonate|takedonate|del_donate)\b/ }
