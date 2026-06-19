@@ -1,0 +1,374 @@
+import { Router } from "express";
+import { db } from "../lib/db.js";
+import { authGuard } from "../lib/guard.js";
+import { steamid64ToSteamid, decodeIfNeeded, stripPort } from "../lib/helpers.js";
+function serverSyncRoutes(cfg) {
+  const r = Router();
+  function requirePassword(req, res) {
+    const pass = String(
+      req.body?.password || req.query?.password || req.headers["x-api-password"] || (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() || ""
+    ).trim();
+    if (!cfg.WEB_SECRET || pass !== cfg.WEB_SECRET) {
+      res.status(403).json({ ok: false, error: "BAD_PASSWORD" });
+      return false;
+    }
+    return true;
+  }
+  r.all("/api/chsp_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list").trim();
+      if (action === "list") {
+        const [players] = await pool.query("SELECT steamid64, steamid, nickname, ip, reason, added_by, active, added_at, updated_at FROM chsp_list");
+        players.forEach((p) => {
+          p.ip = stripPort(p.ip || "");
+        });
+        const [ips] = await pool.query("SELECT ip, reason, added_by, active, added_at FROM chsp_ip_list");
+        ips.forEach((i) => {
+          i.ip = stripPort(i.ip || "");
+        });
+        return res.json({ ok: true, players, ips });
+      }
+      if (action === "upsert_player") {
+        const sid64 = String(params.steamid64 || "").trim();
+        if (!sid64 || !/^\d{17}$/.test(sid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
+        const steamid = String(params.steamid || "").trim() || steamid64ToSteamid(sid64);
+        const nickname = String(params.nickname || "").trim();
+        const ip = stripPort(params.ip || "");
+        const reason = String(params.reason || "").trim();
+        const addedBy = String(params.added_by || "Server").trim();
+        const active = params.active ? 1 : 0;
+        await pool.query(
+          `INSERT INTO chsp_list (steamid64, steamid, nickname, ip, reason, added_by, active)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE steamid=VALUES(steamid), nickname=VALUES(nickname), ip=VALUES(ip),
+           reason=VALUES(reason), added_by=VALUES(added_by), active=VALUES(active), updated_at=CURRENT_TIMESTAMP`,
+          [sid64, steamid, nickname, ip, reason, addedBy, active]
+        );
+        if (ip && active) {
+          await pool.query(
+            `INSERT INTO chsp_ip_list (ip, reason, added_by, active) VALUES (?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE reason=VALUES(reason), added_by=VALUES(added_by), active=1`,
+            [ip, reason, addedBy]
+          ).catch(() => {
+          });
+        }
+        return res.json({ ok: true });
+      }
+      if (action === "delete_player") {
+        const sid64 = String(params.steamid64 || "").trim();
+        if (!sid64 || !/^\d{17}$/.test(sid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
+        await pool.query("DELETE FROM chsp_list WHERE steamid64 = ? LIMIT 1", [sid64]);
+        return res.json({ ok: true });
+      }
+      if (action === "upsert_ip") {
+        const ip = stripPort(params.ip || "");
+        if (!ip) return res.status(400).json({ ok: false, error: "NO_IP" });
+        const reason = String(params.reason || "").trim();
+        const addedBy = String(params.added_by || "Server").trim();
+        const active = params.active ? 1 : 0;
+        await pool.query(
+          `INSERT INTO chsp_ip_list (ip, reason, added_by, active) VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE reason=VALUES(reason), added_by=VALUES(added_by), active=VALUES(active)`,
+          [ip, reason, addedBy, active]
+        );
+        return res.json({ ok: true });
+      }
+      if (action === "delete_ip") {
+        const ip = stripPort(params.ip || "");
+        if (!ip) return res.status(400).json({ ok: false, error: "NO_IP" });
+        await pool.query("DELETE FROM chsp_ip_list WHERE ip = ? LIMIT 1", [ip]);
+        return res.json({ ok: true });
+      }
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("chsp_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+  r.all("/api/models_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list_player_models").trim();
+      if (action === "list_player_models") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        if (!steamid32) return res.json({ ok: true, items: [] });
+        const [rows] = await pool.query(
+          `SELECT m.id, m.model_path, m.name AS title, m.workshop_id, m.size_bytes,
+           pm.issued_by, UNIX_TIMESTAMP(pm.issued_at) AS issued_at
+           FROM panel_player_models pm JOIN panel_models m ON m.id = pm.model_id
+           WHERE pm.steamid32 = ? ORDER BY pm.issued_at DESC`,
+          [steamid32]
+        );
+        const items = rows.map((r2) => ({
+          id: r2.id,
+          model_path: String(r2.model_path),
+          title: decodeIfNeeded(r2.title || ""),
+          workshop_id: String(r2.workshop_id || ""),
+          size_bytes: r2.size_bytes != null ? Number(r2.size_bytes) : null,
+          issued_by: decodeIfNeeded(r2.issued_by || ""),
+          issued_at: parseInt(r2.issued_at || 0, 10)
+        }));
+        return res.json({ ok: true, items });
+      }
+      if (action === "has_model") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const modelPath = String(params.model_path || "").trim();
+        if (!steamid32 || !modelPath) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [rows] = await pool.query(
+          "SELECT 1 FROM panel_player_models pm JOIN panel_models m ON m.id=pm.model_id WHERE pm.steamid32=? AND m.model_path=? LIMIT 1",
+          [steamid32, modelPath]
+        );
+        return res.json({ ok: true, has: rows.length > 0 });
+      }
+      if (action === "grant_model") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const modelPath = String(params.model_path || "").trim();
+        const title = String(params.title || "").trim() || modelPath;
+        const workshopId = String(params.workshop_id || "").trim();
+        const by = String(params.by || "Server").trim();
+        if (!steamid32 || !modelPath) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        await pool.query(
+          "INSERT INTO panel_models (name, model_path, workshop_id) VALUES (?, ?, NULLIF(?,'')) ON DUPLICATE KEY UPDATE name=VALUES(name), workshop_id=VALUES(workshop_id)",
+          [title, modelPath, workshopId]
+        );
+        const [[modelRow]] = await pool.query("SELECT id FROM panel_models WHERE model_path = ? LIMIT 1", [modelPath]);
+        if (!modelRow) return res.status(500).json({ ok: false, error: "MODEL_ID" });
+        await pool.query("INSERT IGNORE INTO panel_player_models (steamid32, model_id, issued_by) VALUES (?,?,?)", [steamid32, modelRow.id, by]);
+        return res.json({ ok: true });
+      }
+      if (action === "revoke_model") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const modelPath = String(params.model_path || "").trim();
+        if (!steamid32 || !modelPath) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [[modelRow]] = await pool.query("SELECT id FROM panel_models WHERE model_path = ? LIMIT 1", [modelPath]);
+        if (modelRow) {
+          await pool.query("DELETE FROM panel_player_models WHERE steamid32=? AND model_id=? LIMIT 1", [steamid32, modelRow.id]);
+        }
+        return res.json({ ok: true });
+      }
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("models_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+  r.all("/api/weapons_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list_player_weapons").trim();
+      if (action === "list_player_weapons") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        if (!steamid32) return res.json({ ok: true, items: [] });
+        const [rows] = await pool.query(
+          `SELECT w.id, w.weapon_class, w.name AS title, w.workshop_id,
+           pw.issued_by, UNIX_TIMESTAMP(pw.issued_at) AS issued_at
+           FROM panel_player_weapons pw JOIN panel_weapons w ON w.id = pw.weapon_id
+           WHERE pw.steamid32 = ? ORDER BY pw.issued_at DESC`,
+          [steamid32]
+        );
+        const items = rows.map((r2) => ({
+          id: r2.id,
+          weapon_class: String(r2.weapon_class),
+          title: decodeIfNeeded(r2.title || ""),
+          workshop_id: String(r2.workshop_id || ""),
+          issued_by: decodeIfNeeded(r2.issued_by || ""),
+          issued_at: parseInt(r2.issued_at || 0, 10)
+        }));
+        return res.json({ ok: true, items });
+      }
+      if (action === "has_weapon") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const weaponClass = String(params.weapon_class || "").trim();
+        if (!steamid32 || !weaponClass) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [rows] = await pool.query(
+          "SELECT 1 FROM panel_player_weapons pw JOIN panel_weapons w ON w.id=pw.weapon_id WHERE pw.steamid32=? AND w.weapon_class=? LIMIT 1",
+          [steamid32, weaponClass]
+        );
+        return res.json({ ok: true, has: rows.length > 0 });
+      }
+      if (action === "grant_weapon") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const weaponClass = String(params.weapon_class || "").trim();
+        const title = String(params.title || "").trim() || weaponClass;
+        const workshopId = String(params.workshop_id || "").trim();
+        const by = String(params.by || "Server").trim();
+        if (!steamid32 || !weaponClass) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        await pool.query(
+          "INSERT INTO panel_weapons (name, weapon_class, workshop_id) VALUES (?, ?, NULLIF(?,'')) ON DUPLICATE KEY UPDATE name=VALUES(name), workshop_id=VALUES(workshop_id)",
+          [title, weaponClass, workshopId]
+        );
+        const [[weaponRow]] = await pool.query("SELECT id FROM panel_weapons WHERE weapon_class = ? LIMIT 1", [weaponClass]);
+        if (!weaponRow) return res.status(500).json({ ok: false, error: "WEAPON_ID" });
+        await pool.query("INSERT IGNORE INTO panel_player_weapons (steamid32, weapon_id, issued_by) VALUES (?,?,?)", [steamid32, weaponRow.id, by]);
+        return res.json({ ok: true });
+      }
+      if (action === "revoke_weapon") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const weaponClass = String(params.weapon_class || "").trim();
+        if (!steamid32 || !weaponClass) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [[weaponRow]] = await pool.query("SELECT id FROM panel_weapons WHERE weapon_class = ? LIMIT 1", [weaponClass]);
+        if (weaponRow) {
+          await pool.query("DELETE FROM panel_player_weapons WHERE steamid32=? AND weapon_id=? LIMIT 1", [steamid32, weaponRow.id]);
+        }
+        return res.json({ ok: true });
+      }
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("weapons_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+  r.get("/api/get_steamid", authGuard, async (req, res) => {
+    const name = String(req.query.name || "").trim();
+    if (!name) return res.status(400).json({ ok: false, error: "EMPTY_NAME" });
+    try {
+      const pool = db();
+      const [r1] = await pool.query("SELECT steamid FROM ba_bans WHERE name = ? ORDER BY ban_time DESC LIMIT 1", [name]);
+      if (r1[0]) return res.json({ ok: true, steamid: r1[0].steamid, name });
+      const [r2] = await pool.query("SELECT steamid FROM ba_users WHERE name = ? LIMIT 1", [name]);
+      if (r2[0]) return res.json({ ok: true, steamid: r2[0].steamid, name });
+      return res.status(404).json({ ok: false, error: "PLAYER_NOT_FOUND" });
+    } catch (e) {
+      console.error("get_steamid error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+  
+  r.all("/api/jobs_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list_player_jobs").trim();
+
+      if (action === "list_player_jobs") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        if (!steamid32) return res.json({ ok: true, items: [] });
+        const [rows] = await pool.query(
+          `SELECT j.id, j.job_command, j.name AS title,
+           pj.given_by, UNIX_TIMESTAMP(pj.given_at) AS given_at
+           FROM panel_player_jobs pj JOIN panel_jobs j ON j.id = pj.job_id
+           WHERE pj.steamid32 = ? ORDER BY pj.given_at DESC`,
+          [steamid32]
+        );
+        const items = rows.map((r2) => ({
+          id: r2.id,
+          job_command: String(r2.job_command),
+          title: decodeIfNeeded(r2.title || ""),
+          given_by: decodeIfNeeded(r2.given_by || ""),
+          given_at: parseInt(r2.given_at || 0, 10)
+        }));
+        return res.json({ ok: true, items });
+      }
+
+      if (action === "has_job") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const jobCommand = String(params.job_command || "").trim();
+        if (!steamid32 || !jobCommand) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [rows] = await pool.query(
+          "SELECT 1 FROM panel_player_jobs pj JOIN panel_jobs j ON j.id=pj.job_id WHERE pj.steamid32=? AND j.job_command=? LIMIT 1",
+          [steamid32, jobCommand]
+        );
+        return res.json({ ok: true, has: rows.length > 0 });
+      }
+
+      if (action === "grant_job") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const jobCommand = String(params.job_command || "").trim();
+        const title = String(params.title || "").trim() || jobCommand;
+        const by = String(params.by || "Server").trim();
+        if (!steamid32 || !jobCommand) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        await pool.query(
+          "INSERT INTO panel_jobs (name, job_command) VALUES (?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name)",
+          [title, jobCommand]
+        );
+        const [[jobRow]] = await pool.query("SELECT id FROM panel_jobs WHERE job_command = ? LIMIT 1", [jobCommand]);
+        if (!jobRow) return res.status(500).json({ ok: false, error: "JOB_ID" });
+        await pool.query("INSERT IGNORE INTO panel_player_jobs (steamid32, job_id, given_by) VALUES (?,?,?)", [steamid32, jobRow.id, by]);
+        return res.json({ ok: true });
+      }
+
+      if (action === "revoke_job") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const jobCommand = String(params.job_command || "").trim();
+        if (!steamid32 || !jobCommand) return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        const [[jobRow]] = await pool.query("SELECT id FROM panel_jobs WHERE job_command = ? LIMIT 1", [jobCommand]);
+        if (jobRow) {
+          await pool.query("DELETE FROM panel_player_jobs WHERE steamid32=? AND job_id=? LIMIT 1", [steamid32, jobRow.id]);
+        }
+        return res.json({ ok: true });
+      }
+
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("jobs_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+  r.all("/api/qmenu_sync", async (req, res) => {
+    if (!requirePassword(req, res)) return;
+    try {
+      const pool = db();
+      const params = { ...req.query, ...req.body };
+      const action = String(params.action || "list_player_qmenu").trim();
+
+      if (action === "list_player_qmenu") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        if (!steamid32) return res.json({ ok: true, items: [] });
+        const [rows] = await pool.query(
+          "SELECT access_type, issued_by, UNIX_TIMESTAMP(issued_at) AS issued_at FROM panel_player_qmenu WHERE steamid32 = ?",
+          [steamid32]
+        );
+        const items = rows.map((r2) => ({
+          access_type: String(r2.access_type),
+          issued_by: decodeIfNeeded(r2.issued_by || ""),
+          issued_at: parseInt(r2.issued_at || 0, 10)
+        }));
+        return res.json({ ok: true, items });
+      }
+
+      if (action === "grant_qmenu") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const accessType = String(params.access_type || "").trim();
+        const by = String(params.by || "Server").trim();
+        if (!steamid32 || !["qmenu", "qmenuplus"].includes(accessType)) {
+          return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        }
+        await pool.query(
+          "INSERT IGNORE INTO panel_player_qmenu (steamid32, access_type, issued_by) VALUES (?,?,?)",
+          [steamid32, accessType, by]
+        );
+        return res.json({ ok: true });
+      }
+
+      if (action === "revoke_qmenu") {
+        const steamid32 = String(params.steamid32 || "").trim();
+        const accessType = String(params.access_type || "").trim();
+        if (!steamid32 || !["qmenu", "qmenuplus"].includes(accessType)) {
+          return res.status(400).json({ ok: false, error: "BAD_PARAMS" });
+        }
+        await pool.query("DELETE FROM panel_player_qmenu WHERE steamid32=? AND access_type=? LIMIT 1", [steamid32, accessType]);
+        return res.json({ ok: true });
+      }
+
+      res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
+    } catch (e) {
+      console.error("qmenu_sync error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+  return r;
+}
+export {
+  serverSyncRoutes as default
+};

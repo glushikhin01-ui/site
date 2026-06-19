@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arizona • Мессенджер</title>
+  <link rel="icon" type="image/png" href="./img/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#eab308">
+  <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
+  <link rel="stylesheet" href="fonts.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=28" />
+</head>
+<body>
+
+<div class="toastWrap" id="toastWrap"></div>
+
+<div class="appScale">
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img class="brandLogo" src="./img/logo.png" alt="Arizona">
+      <div class="brandText">
+        <div class="brandTitle">Arizona</div>
+        <div class="brandSub">Web Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="navItem" data-perm="view_players" data-lock-page="index.html" href="index.html">Игроки</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
+      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
+      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
+      <a class="navItem active" data-perm="messenger" href="messenger.html">Мессенджер</a>
+      <a class="navItem" data-role-only="KP" href="locks.html">Блокировки</a>
+      <a class="navItem" href="#" id="logoutBtn">Выход</a>
+    </nav>
+
+    <div class="sideBottom" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <div class="sideStatus" id="apiStatus">API: ...</div>
+      <button id="themeToggle" class="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">☀️</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="h1">Мессенджер</div>
+        <div class="muted">Общий чат команды <span id="wsState" class="wsState">● подключение…</span></div>
+      </div>
+    </div>
+
+    <div class="chatCard card" id="chatCard">
+      <div class="chatMessages" id="chatMessages">
+        <div class="chatLoadMore" id="loadMore" style="display:none"><button class="btn small">Загрузить ещё</button></div>
+        <div id="msgList"></div>
+      </div>
+
+      <div class="chatDrop" id="chatDrop">Отпусти файлы сюда, чтобы прикрепить 📎</div>
+
+      <div class="chatComposer">
+        <div class="attachPreview" id="attachPreview"></div>
+        <div class="replyPreview" id="replyPreview" style="display:none"></div>
+        <div class="chatComposerRow">
+          <button class="iconBtn" id="attachBtn" title="Прикрепить файл" type="button">📎</button>
+          <input type="file" id="fileInput" multiple hidden
+                 accept="image/*,video/*,audio/*,.pdf,.zip,.7z,.rar,.txt,.json" />
+          <textarea id="chatInput" class="chatInput" rows="1" placeholder="Напиши сообщение…  (Enter — отправить, Shift+Enter — новая строка)"></textarea>
+          <button class="btn blue chatSend" id="sendBtn" data-lock-perm="messenger" title="Отправить" type="button">➤</button>
+        </div>
+        <div class="chatHint muted">Можно прикреплять фото, видео, аудио, документы (до 25 МБ). Перетаскивай файлы прямо в окно.</div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" alt="" /></div>
+
+<script src="ui.js?v=10"></script>
+<script src="auth.js?v=4"></script>
+<script src="messenger.js?v=5"></script>
+<script src="lock_notice.js?v=1"></script>
+</body>
+</html>

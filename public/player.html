@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arizona • Профиль</title>
+
+  <link rel="icon" type="image/png" href="./img/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#eab308">
+  <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
+  <link rel="stylesheet" href="fonts.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=28" />
+</head>
+<body>
+
+<div class="toastWrap" id="toastWrap"></div>
+
+<div class="appScale">
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img class="brandLogo" src="./img/logo.png" alt="Arizona">
+      <div class="brandText">
+        <div class="brandTitle">Arizona</div>
+        <div class="brandSub">Web Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="navItem" data-perm="view_players" href="index.html">← Назад</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
+      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
+      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
+      <a class="navItem" data-perm="messenger" data-lock-page="messenger.html" href="messenger.html">Мессенджер</a>
+      <a class="navItem" data-role-only="KP" href="locks.html">Блокировки</a>
+      <a class="navItem" href="#" id="logoutBtn">Выход</a>
+    </nav>
+
+    <div class="sideBottom" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <div class="sideStatus" id="apiStatus">API: ...</div>
+      <button id="themeToggle" class="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">☀️</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="h1" id="title">Профиль</div>
+        <div class="muted" id="subtitle">Загрузка...</div>
+      </div>
+    </div>
+
+    <div class="profile">
+      <div class="card profileLeft">
+        <div class="profileAva">
+          <img id="ava" class="profileImg" src="./img/noavatar.png" alt="avatar" />
+          <div id="blOverlay" class="blacklistOverlay" style="display:none;">IN BLACKLISTED</div>
+          <div id="dot" class="dot"></div>
+        </div>
+
+        <div class="btnGrid" id="actionGrid">
+          <button class="btn compact danger" id="kickBtn" data-perm-disable="kick" data-no-perm-text="Нет прав" title="Кикнуть игрока">🚪 Кик</button>
+          <button class="btn compact purple" id="banBtn" data-perm-disable="ban" data-no-perm-text="Нет прав" title="Забанить игрока">🔨 Бан</button>
+
+          <button class="btn compact green" id="unbanBtn" data-perm-disable="unban" data-no-perm-text="Нет прав" title="Разбанить игрока">✅ Разбан</button>
+          <button class="btn compact blue" id="adminmodeBtn" data-perm-disable="adminmode" data-no-perm-text="Нет прав" title="Переключить режим админа">🛡️ Админ‑Мод</button>
+
+          <button class="btn compact danger" id="cspBtn" data-perm-disable="manage_blacklist" data-no-perm-text="Нет прав" title="Занести в Чёрный Список Проекта">⛔ ЧСП</button>
+          <button class="btn compact" id="cspRemoveBtn" data-perm-disable="manage_blacklist" data-no-perm-text="Нет прав" title="Вынести из ЧСП">📤 Вынесение ЧСП</button>
+        </div>
+
+        <div class="btnCenter">
+          <button class="btn compact" id="refreshProfileBtn" title="Обновить данные">🔄 Обновить</button>
+        </div>
+</div>
+
+      <div class="card profileRight">
+        <div class="tabBar">
+          <button class="tabBtn active" id="tabProfile">Профиль</button>
+          <button class="tabBtn" id="tabModels" data-perm="give_model">Модели</button>
+          <button class="tabBtn" id="tabWeapons" data-perm="give_weapon">Оружие</button>
+          <button class="tabBtn" id="tabJobs" data-perm="give_job">Профессии</button>
+          <button class="tabBtn" id="tabQmenu" data-perm="give_qmenu">Q-Menu</button>
+        </div>
+
+        <div class="tabPanel active" id="panelProfile">
+        <div class="rows">
+          <div class="row"><div class="k">SteamID</div><div class="v" id="steamid">—</div></div>
+          <div class="row"><div class="k">SteamID64</div><div class="v" id="steamid64">—</div></div>
+          <div class="row"><div class="k">Ник</div><div class="v" id="nick">—</div></div>
+          <div class="row"><div class="k">Онлайн</div><div class="v" id="online">—</div></div>
+          <div class="row"><div class="k">Последний вход</div><div class="v" id="lastseen">—</div></div>
+          <div class="row"><div class="k">Время на сервере</div><div class="v" id="playtime">—</div></div>
+
+          <div class="row rowPlus">
+            <div class="k">Деньги (DarkRP)</div>
+            <div class="v" id="money">—</div>
+            <button class="btn plus small" id="moneyPlusInline" data-perm-disable="give_money" data-no-perm-text="Нет прав" title="Выдать деньги">+</button>
+          </div>
+
+          <div class="row rowPlus">
+            <div class="k">Ранг</div>
+            <div class="v" id="rank">—</div>
+            <button class="btn plus small" id="rankPlusInline" data-perm-disable="set_rank" data-no-perm-text="Нет прав" title="Ранг игрока">+</button>
+          </div>
+
+
+          <div class="row rowPlus" id="warnRow">
+            <div class="k">Варны</div>
+            <div class="v warnsInline" id="warnSummary">0/5</div>
+            <button class="btn small blue" id="warnInfoBtn" style="display:none">Инфо</button>
+          </div>
+          <div class="row"><div class="k">Ping</div><div class="v" id="ping">—</div></div>
+        </div>
+
+        <div class="cardIn outlineBlue">
+          <div class="h2">Баны</div>
+          <div class="tableWrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Админ</th>
+                  <th>Время</th>
+                  <th>Длительность</th>
+                  <th>Причина</th>
+                </tr>
+              </thead>
+              <tbody id="banTbody">
+                <tr><td colspan="5" class="banEmpty">Загрузка...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        </div>
+
+        <div class="tabPanel" id="panelModels">
+          <div class="modelGrid">
+            <div class="cardIn outlineBlue">
+              <div class="h2">Каталог моделей</div>
+              <div class="tools" style="margin-top:10px">
+                <input id="modelSearch" class="input" placeholder="Поиск по названию / модели / workshop id" />
+                <label class="uiCheck" style="padding:8px 12px" title="Показывать скрытые модели">
+                  <input type="checkbox" id="showHiddenModels" />
+                  <span>Скрытые</span>
+                </label>
+                <button class="btn blue" id="addModelBtn" data-perm="manage_models" data-lock-perm="manage_models">Добавить</button>
+              </div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Модель</th>
+                    <th>Workshop</th>
+                    <th>Размер</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="modelsCatalogTbody">
+                    <tr><td colspan="4" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="cardIn outlineBlue">
+              <div class="h2">Модели игрока</div>
+              <div class="muted" style="margin-top:6px">Выданные этому игроку модели</div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Модель</th>
+                    <th>Workshop</th>
+                    <th>Выдал</th>
+                    <th>Когда</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="playerModelsTbody">
+                    <tr><td colspan="5" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabPanel" id="panelWeapons">
+          <div class="modelGrid">
+            <div class="cardIn outlineBlue">
+              <div class="h2">Каталог оружия</div>
+              <div class="tools" style="margin-top:10px">
+                <input id="weaponSearch" class="input" placeholder="Поиск по названию / классу" />
+                <label class="uiCheck" style="padding:8px 12px" title="Показывать скрытое оружие">
+                  <input type="checkbox" id="showHiddenWeapons" />
+                  <span>Скрытые</span>
+                </label>
+                <button class="btn blue" id="addWeaponBtn" data-perm="manage_weapons" data-lock-perm="manage_weapons">Добавить</button>
+              </div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Оружие</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="weaponsCatalogTbody">
+                    <tr><td colspan="2" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="cardIn outlineBlue">
+              <div class="h2">Оружие игрока</div>
+              <div class="muted" style="margin-top:6px">Выданное этому игроку оружие</div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Оружие</th>
+                    <th>Выдал</th>
+                    <th>Когда</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="playerWeaponsTbody">
+                    <tr><td colspan="4" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabPanel" id="panelJobs">
+          <div class="modelGrid">
+            <div class="cardIn outlineBlue">
+              <div class="h2">Каталог профессий</div>
+              <div class="tools" style="margin-top:10px">
+                <input id="jobSearch" class="input" placeholder="Поиск по названию / команде" />
+                <label class="uiCheck" style="padding:8px 12px" title="Показывать скрытые профессии">
+                  <input type="checkbox" id="showHiddenJobs" />
+                  <span>Скрытые</span>
+                </label>
+                <button class="btn blue" id="addJobBtn" data-perm="manage_jobs" data-lock-perm="manage_jobs">Добавить</button>
+              </div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Профессия</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="jobsCatalogTbody">
+                    <tr><td colspan="2" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="cardIn outlineBlue">
+              <div class="h2">Профессии игрока</div>
+              <div class="muted" style="margin-top:6px">Выданные этому игроку профессии</div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Профессия</th>
+                    <th>Выдал</th>
+                    <th>Когда</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="playerJobsTbody">
+                    <tr><td colspan="4" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabPanel" id="panelQmenu">
+          <div class="modelGrid">
+            <div class="cardIn outlineBlue">
+              <div class="h2">Управление Q-Menu</div>
+              <div class="muted" style="margin-top:6px">Выдача прав на использование Q-Menu в игре</div>
+              <div class="tools" style="margin-top:15px; display:flex; gap:10px;">
+                <button class="btn green" id="giveQmenuBtn" data-perm="give_qmenu" data-lock-perm="give_qmenu">Выдать Q-Menu</button>
+                <button class="btn purple" id="giveQmenuPlusBtn" data-perm="give_qmenu" data-lock-perm="give_qmenu">Выдать Q-Menu+</button>
+              </div>
+            </div>
+
+            <div class="cardIn outlineBlue">
+              <div class="h2">Доступ игрока</div>
+              <div class="muted" style="margin-top:6px">Выданные права Q-Menu</div>
+              <div class="tableWrap" style="margin-top:10px">
+                <table class="table">
+                  <thead><tr>
+                    <th>Тип доступа</th>
+                    <th>Выдал</th>
+                    <th>Когда</th>
+                    <th>Действия</th>
+                  </tr></thead>
+                  <tbody id="playerQmenuTbody">
+                    <tr><td colspan="4" class="banEmpty">Загрузка...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="ui.js?v=10"></script>
+<script src="auth.js?v=3"></script>
+<script src="player.js?v=5"></script>
+<script src="lock_notice.js?v=1"></script>
+</body>
+</html>

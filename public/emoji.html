@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arizona • Выдача эмодзи</title>
+
+  <link rel="icon" type="image/png" href="./img/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#eab308">
+  <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
+  <link rel="stylesheet" href="fonts.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=22" />
+</head>
+<body>
+
+<div class="toastWrap" id="toastWrap"></div>
+
+<div class="appScale">
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img class="brandLogo" src="./img/logo.png" alt="Arizona">
+      <div class="brandText">
+        <div class="brandTitle">Arizona</div>
+        <div class="brandSub">Web Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="navItem" data-perm="view_players" data-lock-page="index.html" href="index.html">Игроки</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
+      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
+      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
+      <a class="navItem active" data-perm="manage_emojis" data-lock-page="emoji.html" href="emoji.html">Выдача эмодзи</a>
+      <a class="navItem" data-perm="messenger" data-lock-page="messenger.html" href="messenger.html">Мессенджер</a>
+      <a class="navItem" data-role-only="KP" data-lock-page="locks.html" href="locks.html">Блокировки</a>
+      <a class="navItem" href="#" id="logoutBtn">Выход</a>
+    </nav>
+
+    <div class="sideBottom" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <div class="sideStatus" id="apiStatus">API: ...</div>
+      <button id="themeToggle" class="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">☀️</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="h1">Выдача эмодзи</div>
+        
+      </div>
+      <div class="tools">
+        <button id="refresh" class="btn">Обновить</button>
+      </div>
+    </div>
+
+    <div class="emojiGrid">
+      <section class="card">
+        <div class="h2">Выдать эмодзи</div>
+        <div class="muted" style="margin-top:6px">Укажи SteamID64 или STEAM_0, выбери эмодзи из списка и впиши титул.</div>
+
+        <div class="emojiForm">
+          <label class="fieldLabel">SteamID игрока</label>
+          <input id="steamid" class="input" placeholder="7656119... или STEAM_0:1:123456" autocomplete="off" />
+
+          <label class="fieldLabel">Эмодзи</label>
+          <div id="emojiList" class="emojiPicker">
+            <div class="muted">Загрузка...</div>
+          </div>
+
+          <label class="fieldLabel">Титул</label>
+          <input id="title" class="input" maxlength="64" placeholder="Например: Легенда проекта" autocomplete="off" />
+
+          <div class="emojiPreviewCard">
+            <div class="emojiPreviewAvatar">
+              <span id="previewEmoji">🎩</span>
+            </div>
+            <div>
+              <div class="emojiPreviewName">Плашка игрока</div>
+              <div class="muted" id="previewTitle">Титул появится здесь</div>
+            </div>
+          </div>
+
+          <button id="giveBtn" class="btn blue" data-lock-perm="manage_emojis">Выдать / заменить</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="h2">Активные эмодзи</div>
+        <div class="err" id="err" style="display:none;margin-top:10px">Ошибка загрузки</div>
+        <div class="tableWrap" style="margin-top:12px">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Игрок</th>
+                <th>Эмодзи</th>
+                <th>Титул</th>
+                <th>Выдал</th>
+                <th>Когда</th>
+                <th>Действие</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="6" class="banEmpty">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="ui.js?v=10"></script>
+<script src="auth.js?v=3"></script>
+<script src="emoji.js?v=5"></script>
+<script src="lock_notice.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arizona • Игроки</title>
+
+  <link rel="icon" type="image/png" href="./img/logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#eab308">
+  <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
+  <link rel="stylesheet" href="fonts.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=28" />
+</head>
+<body>
+
+<div class="toastWrap" id="toastWrap"></div>
+
+<div class="appScale">
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img class="brandLogo" src="./img/logo.png" alt="Arizona">
+      <div class="brandText">
+        <div class="brandTitle">Arizona</div>
+        <div class="brandSub">Web Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="navItem active" data-perm="view_players" href="index.html">Игроки</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
+      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
+      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
+      <a class="navItem" data-perm="messenger" data-lock-page="messenger.html" href="messenger.html">Мессенджер</a>
+      <a class="navItem" data-role-only="KP" href="locks.html">Блокировки</a>
+      <a class="navItem" href="#" id="logoutBtn">Выход</a>
+    </nav>
+
+    <div class="sideBottom" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <div class="sideStatus" id="apiStatus">API: ...</div>
+      <button id="themeToggle" class="themeToggle" type="button" title="Сменить тему" aria-label="Сменить тему">☀️</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="h1">Игроки</div>
+        <div class="muted">Список игроков (онлайн сверху)</div>
+      </div>
+
+      <div class="tools">
+        <select id="perPage" class="select">
+          <option value="20">Элементов 20</option>
+          <option value="50">Элементов 50</option>
+          <option value="100">Элементов 100</option>
+        </select>
+        <input id="q" class="input" placeholder="Поиск по нику / SteamID" />
+        <select id="filter" class="select">
+          <option value="all">Все</option>
+          <option value="online">Только онлайн</option>
+        </select>
+        <button id="refresh" class="btn">Обновить</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted" id="countLine">Загрузка...</div>
+      <div class="grid" id="grid"></div>
+
+      <div class="pager" id="pager" style="display:none">
+        <button class="btn" id="prevPage">←</button>
+        <div class="muted" id="pageInfo">Страница 1/1</div>
+        <button class="btn" id="nextPage">→</button>
+      </div>
+
+      <div class="err" id="err" style="display:none">Ошибка загрузки игроков</div>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="ui.js?v=10"></script>
+<script src="auth.js?v=3"></script>
+<script src="script.js?v=7"></script>
+<script src="lock_notice.js?v=1"></script>
+</body>
+</html>
