@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../lib/db.js";
 import { requirePerm } from "../lib/roles.js";
 import { authGuard } from "../lib/guard.js";
-import { logAdminAction } from "../lib/helpers.js";
+import { logAdminAction, decodeIfNeeded } from "../lib/helpers.js";
 
 let _promoTablesEnsured = false;
 
@@ -149,11 +149,24 @@ function promosRoutes() {
       const promoId = parseInt(req.query.promo_id || 0, 10);
       if (!promoId) return res.json({ ok: true, items: [] });
       const [rows] = await db().query(
-        `SELECT steamid64, steamid32, nickname, UNIX_TIMESTAMP(used_at) AS used_at
-         FROM panel_promo_usage WHERE promo_id = ? ORDER BY used_at DESC`,
+        `SELECT
+           pu.steamid64, pu.steamid32, pu.nickname, UNIX_TIMESTAMP(pu.used_at) AS used_at,
+           u.name AS current_nickname,
+           (SELECT r.rank FROM ba_ranks r WHERE r.steamid = pu.steamid64 ORDER BY r.expire_time DESC LIMIT 1) AS rank_id
+         FROM panel_promo_usage pu
+         LEFT JOIN ba_users u ON u.steamid = pu.steamid64
+         WHERE pu.promo_id = ?
+         ORDER BY pu.used_at DESC`,
         [promoId]
       );
-      res.json({ ok: true, items: rows });
+
+      const items = rows.map((r2) => ({
+        ...r2,
+        nickname: decodeIfNeeded(r2.current_nickname || r2.nickname || "—"),
+        used_at: parseInt(r2.used_at || 0, 10)
+      }));
+
+      res.json({ ok: true, items });
     } catch (e) {
       console.error("promos usage error:", e.message);
       res.status(500).json({ ok: false, error: "DB_ERROR" });

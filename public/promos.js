@@ -16,6 +16,33 @@
   const usageClose = $("usageClose");
   const usageCloseX = $("usageCloseX");
 
+  const RANK_ID_TO_NAME = {
+    1: "User", 2: "vip", 3: "d-moderator", 4: "d-admin", 5: "superadmin",
+    6: "owner", 7: "inter", 8: "helper", 9: "moderator", 10: "admin",
+    11: "head-admin", 12: "curator", 13: "head-curator", 14: "vice-manager",
+    15: "manager", 16: "project-team", 17: "arizona-team", 18: "zamuprav",
+    19: "uprav", 20: "co*", 21: "*"
+  };
+  const RANK_COLORS = {
+    "*": "#ef4444", "co*": "#ef4444", "uprav": "#ef4444",
+    "zamuprav": "#f97316", "arizona-team": "#f97316", "project-team": "#f97316",
+    "manager": "#eab308", "vice-manager": "#eab308",
+    "head-curator": "#06b6d4", "curator": "#06b6d4",
+    "head-admin": "#3b82f6", "admin": "#3b82f6",
+    "moderator": "#ec4899", "helper": "#ec4899", "inter": "#ec4899",
+    "owner": "#8b5cf6", "superadmin": "#8b5cf6",
+    "d-admin": "#94a3b8", "d-moderator": "#94a3b8",
+    "vip": "#f59e0b", "VIP": "#f59e0b",
+    "User": "#10b981", "user": "#10b981"
+  };
+
+  function resolveRank(rankId) {
+    if (!rankId) return "user";
+    if (typeof rankId === "number") return RANK_ID_TO_NAME[rankId] || "user";
+    if (/^\d+$/.test(rankId)) return RANK_ID_TO_NAME[parseInt(rankId, 10)] || "user";
+    return String(rankId).toLowerCase();
+  }
+
   let allItems = [];
   let loading = false;
 
@@ -66,6 +93,8 @@
   function modal({ title, body, okText = "Сохранить", cancelText = "Отмена", danger = false, onOk }) {
     const ov = document.createElement("div");
     ov.className = "modalOverlay promoModalOverlay";
+    ov.style.backdropFilter = "blur(8px)";
+    ov.style.background = "rgba(0, 0, 0, 0.7)";
 
     const card = document.createElement("div");
     card.className = "modalCard promoModalCard";
@@ -162,7 +191,10 @@
 
   function parseDateValue(s) {
     if (!s) return null;
-    if (typeof s === "number") return new Date(s * 1000);
+    if (typeof s === "string" && /^\d+$/.test(s)) s = parseInt(s, 10);
+    if (typeof s === "number") {
+      return new Date(s < 10000000000 ? s * 1000 : s);
+    }
     const raw = String(s).trim();
     if (!raw) return null;
     const d = new Date(raw.replace(" ", "T"));
@@ -170,6 +202,7 @@
   }
 
   function fmtDate(s) {
+    if (typeof s === "number" && s > 1e12) s = Math.floor(s / 1000);
     const d = parseDateValue(s);
     if (!d) return s ? String(s) : "—";
     return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
@@ -198,7 +231,7 @@
 
   function rewardHtml(p) {
     const parts = [];
-    if (p.donate > 0) parts.push(`<span class="promoReward donate">💎 ${p.donate.toLocaleString("ru-RU")}</span>`);
+    if (p.donate > 0) parts.push(`<span class="promoReward donate">₽ ${p.donate.toLocaleString("ru-RU")}</span>`);
     if (p.money > 0) parts.push(`<span class="promoReward money">💰 ${p.money.toLocaleString("ru-RU")}</span>`);
     return parts.length ? `<div class="promoRewards">${parts.join("")}</div>` : "—";
   }
@@ -265,15 +298,30 @@
 
       tr.querySelector(".promoCopy").onclick = async () => {
         try {
-          await navigator.clipboard.writeText(p.code);
+          const textToCopy = p.code;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(textToCopy);
+          } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand("copy");
+            textArea.remove();
+          }
           toast(true, "Скопировано", p.code);
-        } catch {
+        } catch (e) {
+          console.error("Copy error:", e);
           toast(false, "Ошибка", "Не удалось скопировать");
         }
       };
 
       const actions = tr.querySelector(".promoActions");
-      actions.appendChild(createBtn("Активации", "Кто активировал", "", () => showUsage(p)));
+      actions.appendChild(createBtn("Информация", "Кто активировал", "", () => showUsage(p)));
       actions.appendChild(createBtn(p.is_active ? "Выкл" : "Вкл", p.is_active ? "Выключить" : "Включить", "", async () => {
         await apiJson("./api/promos", {
           method: "POST",
@@ -431,6 +479,10 @@
     usageCode.textContent = p.code;
     usageTbody.innerHTML = `<tr><td colspan="3" class="banEmpty">Загрузка...</td></tr>`;
     usageModal.style.display = "flex";
+    usageModal.style.backdropFilter = "blur(8px)";
+    usageModal.style.background = "rgba(0, 0, 0, 0.7)";
+    usageTbody.style.borderCollapse = "separate";
+    usageTbody.style.borderSpacing = "0 8px";
     lockBody(true);
     try {
       const j = await apiJson(`./api/promos/usage?promo_id=${encodeURIComponent(p.id)}`);
@@ -442,10 +494,28 @@
       usageTbody.innerHTML = "";
       for (const u of items) {
         const tr = document.createElement("tr");
+        const profileUrl = u.steamid64 ? `player.html?sid=${encodeURIComponent(u.steamid64)}` : "#";
+        const rankName = resolveRank(u.rank_id);
+        const rankColor = RANK_COLORS[rankName] || RANK_COLORS[rankName.toLowerCase()] || "var(--muted)";
+        
         tr.innerHTML = `
-          <td>${esc(u.nickname || "—")}</td>
-          <td><code>${esc(u.steamid64 || u.steamid32 || "—")}</code></td>
-          <td>${fmtDate(u.used_at)}</td>`;
+          <td style="padding: 12px 10px; vertical-align: middle;">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <a href="${profileUrl}" class="promoUsageNick" style="color:var(--accent);font-weight:600;font-size:14px;display:block;">${esc(u.nickname || "—")}</a>
+              <span class="promoRankBadge" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid ${rankColor};color:${rankColor};width:fit-content;text-transform:uppercase;font-weight:700;line-height:1;">
+                ${esc(rankName)}
+              </span>
+            </div>
+          </td>
+          <td style="padding: 12px 10px; vertical-align: middle;">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <code style="color:var(--text);font-family:monospace;">${esc(u.steamid32 || "—")}</code>
+              <small class="muted" style="font-size:10px; opacity: 0.6;">${esc(u.steamid64 || "")}</small>
+            </div>
+          </td>
+          <td style="padding: 12px 10px; vertical-align: middle; white-space: nowrap;">
+            <span style="color:var(--text);">${fmtDate(u.used_at)}</span>
+          </td>`;
         usageTbody.appendChild(tr);
       }
     } catch (e) {

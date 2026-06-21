@@ -294,7 +294,7 @@ img {
   box-shadow: 0 8px 25px rgba(var(--accent-rgb), .2);
 }
 .navItem:hover::before {
-  left: 100%;
+  /* left: 100%; */
 }
 .navItem.active {
   background:
@@ -499,7 +499,7 @@ img {
   box-shadow: 0 10px 30px rgba(var(--accent-rgb), .25);
 }
 .btn:hover::before {
-  left: 100%;
+  /* left: 100%; */
 }
 .btn:active {
   transform: translateY(0);
