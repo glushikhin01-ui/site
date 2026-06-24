@@ -32,11 +32,13 @@ import messengerRoutes from "./routes/messenger.js";
 import zbtAccessRoutes from "./routes/zbt_access.js";
 import promosRoutes from "./routes/promos.js";
 import locksRoutes from "./routes/locks.js";
+import moneyLogsRoutes from "./routes/money_logs.js";
+import techGangsRoutes from "./routes/tech_gangs.js";
 import { WebSocketServer } from "ws";
 import { hasPerm } from "./lib/roles.js";
 import {
   loadLocks,
-  isPermLocked,
+  isPermLockedFor,
   resolveActionPerm,
   lockAppliesTo
 } from "./lib/locks.js";
@@ -201,7 +203,7 @@ app.use((req, res, next) => {
     if (!lockAppliesTo(req.session.user)) return next();
     const perm = resolveActionPerm(req.method, req.path, req.body);
     if (!perm) return next();
-    if (isPermLocked(perm)) {
+    if (isPermLockedFor(req.session.user, perm)) {
       return res.status(423).json({
         ok: false,
         error: "LOCKED",
@@ -212,6 +214,51 @@ app.use((req, res, next) => {
   } catch (e) {}
   next();
 });
+
+
+const LEGACY_REDIRECTS = new Map([
+  ["/index.html", "/"],
+  ["/login.html", "/login"],
+  ["/bans.html", "/bans"],
+  ["/stats.html", "/stats"],
+  ["/admin_logs.html", "/admin-logs"],
+  ["/blacklist.html", "/blacklist"],
+  ["/promos.html", "/promos"],
+  ["/zbt_access.html", "/zbt-access"],
+  ["/messenger.html", "/messenger"],
+  ["/manage.html", "/manage"],
+  ["/tech_money.html", "/tech/money"],
+  ["/tech_gangs.html", "/tech/gangs"],
+  ["/player.html", "/player"]
+]);
+app.get([...LEGACY_REDIRECTS.keys()], (req, res) => {
+  const to = LEGACY_REDIRECTS.get(req.path) || "/";
+  const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(301, to + qs);
+});
+
+const PAGE_ROUTES = [
+  ["/", "index.html"],
+  ["/players", "index.html"],
+  ["/login", "login.html"],
+  ["/bans", "bans.html"],
+  ["/stats", "stats.html"],
+  ["/admin-logs", "admin_logs.html"],
+  ["/blacklist", "blacklist.html"],
+  ["/promos", "promos.html"],
+  ["/zbt-access", "zbt_access.html"],
+  ["/messenger", "messenger.html"],
+  ["/manage", "manage.html"],
+  ["/manage/users", "add_user.html"],
+  ["/manage/locks", "locks.html"],
+  ["/manage/permissions", "permissions.html"],
+  ["/tech/money", "tech_money.html"],
+  ["/tech/gangs", "tech_gangs.html"],
+  ["/player", "player.html"]
+];
+for (const [route, file] of PAGE_ROUTES) {
+  app.get(route, (req, res) => res.sendFile(join(__dirname, "public", file)));
+}
 
 app.use(express.static(join(__dirname, "public"), {
   maxAge: "1h",
@@ -261,6 +308,8 @@ app.use(zbtAccessRoutes());
 app.use(promosRoutes());
 app.use(serverSyncRoutes(cfg));
 app.use(locksRoutes());
+app.use(moneyLogsRoutes());
+app.use(techGangsRoutes());
 
 // Error handler
 app.use((err, req, res, _next) => {

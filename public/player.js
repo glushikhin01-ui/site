@@ -68,12 +68,12 @@
 
   const apiStatus = $("apiStatus"), ava = $("ava"), dot = $("dot");
   const steamidEl=$("steamid"), steamid64El=$("steamid64"), nickEl=$("nick"), onlineEl=$("online"), lastseenEl=$("lastseen"), playtimeEl=$("playtime"), moneyEl=$("money"), rankEl=$("rank"), pingEl=$("ping");
-  const banTbody=$("banTbody"), warnSummary=$("warnSummary"), warnInfoBtn=$("warnInfoBtn");
+  const banTbody=$("banTbody"), banPager=$("banPager"), banPrev=$("banPrev"), banNext=$("banNext"), banPageInfo=$("banPageInfo"), warnSummary=$("warnSummary"), warnInfoBtn=$("warnInfoBtn");
   const titleEl=$("title"), subtitleEl=$("subtitle");
   const kickBtn=$("kickBtn"), banBtn=$("banBtn"), unbanBtn=$("unbanBtn"), adminmodeBtn=$("adminmodeBtn"), cspBtn=$("cspBtn"), cspRemoveBtn=$("cspRemoveBtn"), blOverlay=$("blOverlay"), refreshProfileBtn=$("refreshProfileBtn");
   const moneyPlusInline=$("moneyPlusInline"), rankPlusInline=$("rankPlusInline");
   const sid = new URLSearchParams(location.search).get("sid");
-  if (!sid) { alert("Не указан SteamID64"); location.href="index.html"; return; }
+  if (!sid) { alert("Не указан SteamID64"); location.href="/"; return; }
   let player=null, autoRefreshInterval=null;
 
   function showMoneyModal(){
@@ -195,7 +195,7 @@
     apiStatus.textContent="API: загрузка...";
     try{
       const r=await fetch(`./api/player?sid=${encodeURIComponent(sid)}&_=${Date.now()}`,{cache:"no-store",credentials:"include",headers:{"X-Requested-With":"XMLHttpRequest"}});
-      if(r.status===401){ location.href="login.html?next="+encodeURIComponent(location.pathname.replace(/^\//,"")+location.search); return; }
+      if(r.status===401){ location.href="/login?next="+encodeURIComponent(location.pathname.replace(/^\//,"")+location.search); return; }
       if(r.status===404){ apiStatus.textContent="API: OK"; toast(false,"Не найден","Игрок не найден в базе данных"); titleEl.textContent="Игрок не найден"; subtitleEl.textContent="SteamID64: "+sid; return; }
       if(!r.ok) throw new Error("HTTP "+r.status);
       const d=await r.json(); if(!d.ok) throw new Error(d.error||"API error");
@@ -222,7 +222,11 @@
       autoRefreshInterval=setInterval(()=>load(), d.online?10000:30000);
     }catch(e){ apiStatus.textContent="API: ERROR"; toast(false,"Ошибка","Не удалось загрузить данные игрока"); console.error(e); }
   }
-  function renderBans(list){ banTbody.innerHTML=""; if(!list.length){ banTbody.innerHTML=`<tr><td colspan="5" class="banEmpty">Нет банов</td></tr>`; return; } for(const b of list){ const tr=document.createElement("tr"); const banPlayerName=escapeHtml(b.name||player?.nick||player?.steamid||"—"); let banLengthText="Перманентно"; if(b.ban_len>0){ const hours=Math.floor(b.ban_len/3600); const days=Math.floor(hours/24); if(days>0) banLengthText=`${days} дней`; else if(hours>0) banLengthText=`${hours} часов`; else { const minutes=Math.floor(b.ban_len/60); banLengthText=`${minutes} минут`; } } const banTime=b.ban_time? new Date(b.ban_time*1000).toLocaleString("ru-RU"):"—"; tr.innerHTML=`<td>${banPlayerName}</td><td>${escapeHtml(b.a_name||"—")}</td><td>${banTime}</td><td><div><strong>${banLengthText}</strong></div><div style="font-size:11px;color:var(--muted);margin-top:4px">${b.ban_len===0?"Перманентный бан":"Временный бан"}</div></td><td>${escapeHtml(b.reason||"—")}</td>`; banTbody.appendChild(tr);} }
+  let banList=[], banPage=1; const BANS_PER_PAGE=5;
+  function renderBans(list){ banList=Array.isArray(list)?list:[]; banPage=1; renderBanPage(); }
+  function renderBanPage(){ banTbody.innerHTML=""; const total=banList.length; const pages=Math.max(1,Math.ceil(total/BANS_PER_PAGE)); if(banPage>pages) banPage=pages; if(!total){ banTbody.innerHTML=`<tr><td colspan="5" class="banEmpty">Нет банов</td></tr>`; if(banPager) banPager.style.display="none"; return; } const start=(banPage-1)*BANS_PER_PAGE; const slice=banList.slice(start,start+BANS_PER_PAGE); for(const b of slice){ const tr=document.createElement("tr"); const banPlayerName=escapeHtml(b.name||player?.nick||player?.steamid||"—"); let banLengthText="Перманентно"; if(b.ban_len>0){ const hours=Math.floor(b.ban_len/3600); const days=Math.floor(hours/24); if(days>0) banLengthText=`${days} дней`; else if(hours>0) banLengthText=`${hours} часов`; else { const minutes=Math.max(1,Math.floor(b.ban_len/60)); banLengthText=`${minutes} минут`; } } const banTime=b.ban_time? new Date(b.ban_time*1000).toLocaleString("ru-RU"):"—"; tr.innerHTML=`<td data-label="Игрок"><span class="nickText">${banPlayerName}</span></td><td data-label="Админ"><span class="nickText">${escapeHtml(b.a_name||"—")}</span></td><td data-label="Время">${banTime}</td><td data-label="Длительность"><div><strong>${banLengthText}</strong></div><div style="font-size:11px;color:var(--muted);margin-top:4px">${b.ban_len===0?"Перманентный бан":"Временный бан"}</div></td><td data-label="Причина">${escapeHtml(b.reason||"—")}</td>`; banTbody.appendChild(tr);} if(banPager){ banPager.style.display=pages>1?"":"none"; if(banPageInfo) banPageInfo.textContent=`Страница ${banPage}/${pages} · всего ${total}`; if(banPrev) banPrev.disabled=banPage<=1; if(banNext) banNext.disabled=banPage>=pages; } }
+  if(banPrev) banPrev.onclick=()=>{ if(banPage>1){ banPage--; renderBanPage(); } };
+  if(banNext) banNext.onclick=()=>{ const pages=Math.max(1,Math.ceil(banList.length/BANS_PER_PAGE)); if(banPage<pages){ banPage++; renderBanPage(); } };
   function fmtWarnDate(ts){ const n=Number(ts||0); if(!n) return "—"; return new Date(n*1000).toLocaleString("ru-RU"); }
   function renderWarns(list){ list=Array.isArray(list)?list:[]; const count=list.length; const limit=Number(player?.warns_limit||5)||5; if(warnSummary){ warnSummary.textContent= count>0? `${count}/${limit}`:`0/${limit} (нету)`; warnSummary.classList.toggle("hasWarns",count>0);} if(warnInfoBtn){ warnInfoBtn.style.display=count>0?"":"none"; warnInfoBtn.onclick=()=>showWarnsInfo(list,limit);} }
   function showWarnsInfo(list,limit){ const wrap=document.createElement("div"); wrap.className="warnInfoModal"; const count=Array.isArray(list)?list.length:0; wrap.innerHTML=`<div class="warnInfoSummary">Варны: <strong>${count}/${limit}</strong></div><div class="warnInfoList">${(list||[]).map((w,i)=>`<div class="warnInfoItem"><div class="warnInfoHead"><span class="warnBadge">WARN #${i+1}</span><span class="muted">${escapeHtml(fmtWarnDate(w.timestamp))}</span></div><div class="warnInfoRow"><span>Кто выдал:</span><strong>${escapeHtml(w.admin_name||w.admin_steamid||"—")}</strong></div><div class="warnInfoRow"><span>SteamID админа:</span><code>${escapeHtml(w.admin_steamid||"—")}</code></div><div class="warnInfoReason">${escapeHtml(w.reason||"Причина не указана")}</div></div>`).join("")}</div>`; modal({ title:"Информация по варнам", body:wrap, onOk: async()=>{} }); }

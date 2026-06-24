@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ru">
 <head>
+  <base href="/">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Arizona • Профиль</title>
@@ -29,17 +30,14 @@
     </div>
 
     <nav class="nav">
-      <a class="navItem" data-perm="view_players" href="index.html">← Назад</a>
-      <a class="navItem" data-perm="view_promos" data-lock-page="promos.html" href="promos.html">Промокоды</a>
-      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
-      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
-      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
-      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
-      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
-      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
-      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
-      <a class="navItem" data-perm="messenger" data-lock-page="messenger.html" href="messenger.html">Мессенджер</a>
-      <a class="navItem" data-role-only="KP" href="locks.html">Блокировки</a>
+      <a class="navItem" data-perm="view_players" href="/">← Назад</a>
+      <a class="navItem" data-perm="view_promos" data-lock-page="/promos" href="/promos">Промокоды</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="/bans" href="/bans">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="/stats" href="/stats">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="/admin-logs" href="/admin-logs">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="/blacklist" href="/blacklist">Черный список проекта</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="/zbt-access" href="/zbt-access">Доступ ЗБТ</a>
+      <a class="navItem" data-perm="messenger" data-lock-page="/messenger" href="/messenger">Мессенджер</a>
       <a class="navItem" href="#" id="logoutBtn">Выход</a>
     </nav>
 
@@ -124,7 +122,7 @@
         <div class="cardIn outlineBlue">
           <div class="h2">Баны</div>
           <div class="tableWrap">
-            <table class="table">
+            <table class="table banHistoryTable">
               <thead>
                 <tr>
                   <th>Игрок</th>
@@ -138,6 +136,11 @@
                 <tr><td colspan="5" class="banEmpty">Загрузка...</td></tr>
               </tbody>
             </table>
+          </div>
+          <div class="pager banPager" id="banPager" style="display:none">
+            <button class="btn small" id="banPrev" type="button">←</button>
+            <div class="muted" id="banPageInfo">Страница 1/1</div>
+            <button class="btn small" id="banNext" type="button">→</button>
           </div>
         </div>
 

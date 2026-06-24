@@ -94,7 +94,7 @@
     try {
       const r = await fetch("./api/locks", { cache:"no-store", credentials:"include" });
       if (r.status === 401) {
-        location.href = "login.html?next=" + encodeURIComponent("locks.html");
+        location.href = "/login?next=" + encodeURIComponent("/manage/locks");
         return null;
       }
       const j = await r.json();
@@ -113,137 +113,80 @@
   }
 
   function renderPermGroups() {
-    const groups = (_data && _data.groups) || {};
-    const keys   = (_data && _data.keys) || [];
-    const permMap= (_data && _data.permissions) || {};
-
+    const groups = Array.isArray(_data?.groups) ? _data.groups : [];
+    const keys = (_data && _data.keys) || [];
+    const others = (_data && (_data.permissions_others || _data.permissions)) || {};
+    const self = (_data && _data.permissions_self) || {};
     const container = els.permGroups;
     container.innerHTML = "";
-
-    if (!keys.length) {
-      els.permEmpty.style.display = "block";
-      return;
-    }
+    if (!keys.length) { els.permEmpty.style.display = "block"; return; }
     els.permEmpty.style.display = "none";
 
-    const byGroup = {};
-    for (const k of keys) {
-      let g = "Прочее";
-      for (const [gName, list] of Object.entries(groups)) {
-        if (Array.isArray(list) && list.includes(k)) { g = gName; break; }
-      }
-      if (!byGroup[g]) byGroup[g] = [];
-      byGroup[g].push(k);
-    }
+    const used = new Set();
+    const packs = groups.length ? groups.map((g) => ({ title: g.title || g.key || "Прочее", perms: g.perms || [] })) : [];
+    packs.push({ title: "Прочее", perms: keys.filter((k) => !packs.some((g) => g.perms.includes(k))) });
 
-    const orderedNames = Object.keys(groups).concat(["Прочее"]);
-    const seen = new Set();
-    for (const gName of orderedNames) {
-      if (!byGroup[gName] || !byGroup[gName].length) continue;
-      if (seen.has(gName)) continue;
-      seen.add(gName);
-
+    for (const pack of packs) {
+      const list = (pack.perms || []).filter((k) => keys.includes(k) && !used.has(k));
+      if (!list.length) continue;
+      list.forEach((k) => used.add(k));
       const groupEl = document.createElement("div");
       groupEl.className = "locksGroup";
-
-      const head = document.createElement("div");
-      head.className = "locksGroupHead";
-      head.innerHTML =
-        '<div class="locksGroupName">' + escapeHtml(gName) + '</div>' +
-        '<div class="locksGroupCount">' + byGroup[gName].length + ' действий</div>';
-      groupEl.appendChild(head);
-
+      groupEl.innerHTML = '<div class="locksGroupHead"><div class="locksGroupName">' + escapeHtml(pack.title) + '</div><div class="locksGroupCount">' + list.length + ' действий</div></div>';
       const body = document.createElement("div");
-      body.className = "locksGroupBody";
-
-      for (const k of byGroup[gName]) {
-        const item = document.createElement("label");
-        item.className = "lockItem" + (permMap[k] ? " locked" : "");
-        item.innerHTML =
-          '<div style="min-width:0;flex:1">' +
-            '<div class="lockItemLabel">' + escapeHtml(permLabel(k)) + '</div>' +
-            '<div class="lockItemKey">' + escapeHtml(k) + '</div>' +
-          '</div>' +
-          '<span class="sw">' +
-            '<input type="checkbox" data-perm-key="' + escapeHtml(k) + '"' +
-                  (permMap[k] ? ' checked' : '') + '>' +
-            '<span class="swSlider"></span>' +
-          '</span>';
-        const cb = item.querySelector("input");
-        cb.addEventListener("change", () => {
-          item.classList.toggle("locked", cb.checked);
-          _dirty = true;
-          updateStats();
-        });
+      body.className = "locksGroupBody splitLocksBody";
+      for (const k of list) {
+        const o = !!others[k], me = !!self[k];
+        const item = document.createElement("div");
+        item.className = "lockItem splitLockItem" + ((o || me) ? " locked" : "");
+        item.innerHTML = '<div class="splitLockInfo"><div class="lockItemLabel">' + escapeHtml(permLabel(k)) + '</div><div class="lockItemKey">' + escapeHtml(k) + '</div></div>' + splitSwitches('perm', k, o, me);
+        item.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", () => { item.classList.toggle("locked", !!item.querySelector("input:checked")); _dirty = true; updateStats(); }));
         body.appendChild(item);
       }
-
       groupEl.appendChild(body);
       container.appendChild(groupEl);
     }
   }
 
+  function splitSwitches(type, key, others, self) {
+    return '<div class="splitSwitches">' +
+      '<label class="splitSwitch"><span>Остальные</span><span class="sw"><input type="checkbox" data-lock-scope="others" data-' + type + '-key="' + escapeHtml(key) + '"' + (others ? ' checked' : '') + '><span class="swSlider"></span></span></label>' +
+      '<label class="splitSwitch"><span>Я (KP)</span><span class="sw"><input type="checkbox" data-lock-scope="self" data-' + type + '-key="' + escapeHtml(key) + '"' + (self ? ' checked' : '') + '><span class="swSlider"></span></span></label>' +
+    '</div>';
+  }
+
   function renderPages() {
     let pages = (_data && _data.pages) || [];
-    if (!Array.isArray(pages)) {
-      pages = Object.keys(_data.pages || {}).map((k) => ({ key: k, label: k, perm: null }));
-    }
-    const state = (_data && _data.pages_state) || (_data && _data.permissions_pages) || {};
-
+    if (!Array.isArray(pages)) pages = Object.keys(_data.pages || {}).map((k) => ({ key: k, label: k, perm: null }));
+    const others = (_data && (_data.pages_others || _data.pages_state || _data.pages)) || {};
+    const self = (_data && _data.pages_self) || {};
     els.pages.innerHTML = "";
     if (!pages.length) {
-      const empty = document.createElement("div");
-      empty.className = "locksEmpty";
-      empty.textContent = "Нет доступных разделов";
-      els.pages.appendChild(empty);
-      return;
+      const empty = document.createElement("div"); empty.className = "locksEmpty"; empty.textContent = "Нет доступных разделов"; els.pages.appendChild(empty); return;
     }
     for (const p of pages) {
       if (!p || typeof p !== "object" || !p.key) continue;
-      const locked = !!state[p.key];
-      const item = document.createElement("label");
-      item.className = "pageItem" + (locked ? " locked" : "");
-      item.innerHTML =
-        '<div style="min-width:0;flex:1">' +
-          '<div class="pageItemLabel">' + escapeHtml(p.label || p.key) + '</div>' +
-          '<div class="pageItemKey">' + escapeHtml(p.key) +
-            (p.perm ? ' · привязано к «' + escapeHtml(permLabel(p.perm)) + '»' : '') +
-          '</div>' +
-        '</div>' +
-        '<span class="sw">' +
-          '<input type="checkbox" data-page-key="' + escapeHtml(p.key) + '"' +
-                (locked ? ' checked' : '') + '>' +
-          '<span class="swSlider"></span>' +
-        '</span>';
-      const cb = item.querySelector("input");
-      cb.addEventListener("change", () => {
-        item.classList.toggle("locked", cb.checked);
-        _dirty = true;
-        updateStats();
-      });
+      const o = !!others[p.key], me = !!self[p.key];
+      const item = document.createElement("div");
+      item.className = "pageItem splitPageItem" + ((o || me) ? " locked" : "");
+      item.innerHTML = '<div style="min-width:0;flex:1"><div class="pageItemLabel">' + escapeHtml(p.label || p.key) + '</div><div class="pageItemKey">' + escapeHtml(p.key) + (p.perm ? ' · привязано к «' + escapeHtml(permLabel(p.perm)) + '»' : '') + '</div></div>' + splitSwitches('page', p.key, o, me);
+      item.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", () => { item.classList.toggle("locked", !!item.querySelector("input:checked")); _dirty = true; updateStats(); }));
       els.pages.appendChild(item);
     }
   }
 
   function renderMode() {
-    const mode = (_data && _data.mode) || "all";
-    els.modeAll.classList.toggle("on", mode === "all");
-    els.modeOthers.classList.toggle("on", mode === "others");
-    els.statMode.textContent = mode === "all" ? "Блокировать всех" : "Только остальных";
-    els.modeHint.textContent = mode === "all"
-      ? "Включая тебя (KP). Самое строгое — никто не сможет пользоваться."
-      : "Остальные не смогут, но ты (KP) по-прежнему всё можешь. Удобно тестировать.";
+    if (els.modeAll) { els.modeAll.classList.add("on"); els.modeAll.textContent = "Раздельная блокировка"; }
+    if (els.modeOthers) els.modeOthers.style.display = "none";
+    els.statMode.textContent = "Раздельно";
+    els.modeHint.textContent = "У каждой блокировки два переключателя: «Остальные» и «Я (KP)». Можно блокировать отдельно для всех игроков и отдельно для себя.";
     els.note.value = (_data && _data.note) || "";
   }
 
   function updateStats() {
     let permCount = 0, pageCount = 0;
-    els.permGroups.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      if (cb.checked) permCount++;
-    });
-    els.pages.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      if (cb.checked) pageCount++;
-    });
+    els.permGroups.querySelectorAll("input[type=checkbox]:checked").forEach(() => permCount++);
+    els.pages.querySelectorAll("input[type=checkbox]:checked").forEach(() => pageCount++);
     els.statPerms.textContent = String(permCount);
     els.statPages.textContent = String(pageCount);
   }
@@ -258,20 +201,20 @@
   }
 
   function collectPayload() {
-    const permissions = {};
-    els.permGroups.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      permissions[cb.getAttribute("data-perm-key")] = cb.checked;
+    const permissions_others = {}, permissions_self = {}, pages_others = {}, pages_self = {};
+    els.permGroups.querySelectorAll("input[data-perm-key]").forEach((cb) => {
+      const key = cb.getAttribute("data-perm-key");
+      const scope = cb.getAttribute("data-lock-scope");
+      if (scope === "self") permissions_self[key] = cb.checked;
+      else permissions_others[key] = cb.checked;
     });
-    const pages = {};
-    els.pages.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-      pages[cb.getAttribute("data-page-key")] = cb.checked;
+    els.pages.querySelectorAll("input[data-page-key]").forEach((cb) => {
+      const key = cb.getAttribute("data-page-key");
+      const scope = cb.getAttribute("data-lock-scope");
+      if (scope === "self") pages_self[key] = cb.checked;
+      else pages_others[key] = cb.checked;
     });
-    return {
-      mode: els.modeAll.classList.contains("on") ? "all" : "others",
-      permissions,
-      pages,
-      note: (els.note.value || "").slice(0, 200)
-    };
+    return { permissions_others, permissions_self, pages_others, pages_self, note: (els.note.value || "").slice(0, 200) };
   }
 
   async function save() {
@@ -347,7 +290,7 @@
   function setAllPerms(value) {
     els.permGroups.querySelectorAll("input[type=checkbox]").forEach((cb) => {
       cb.checked = value;
-      cb.closest(".lockItem").classList.toggle("locked", value);
+      cb.closest(".lockItem").classList.toggle("locked", !!cb.closest(".lockItem").querySelector("input:checked"));
     });
     _dirty = true;
     updateStats();
@@ -355,7 +298,7 @@
   function setAllPages(value) {
     els.pages.querySelectorAll("input[type=checkbox]").forEach((cb) => {
       cb.checked = value;
-      cb.closest(".pageItem").classList.toggle("locked", value);
+      cb.closest(".pageItem").classList.toggle("locked", !!cb.closest(".pageItem").querySelector("input:checked"));
     });
     _dirty = true;
     updateStats();
@@ -366,20 +309,8 @@
     els.save.addEventListener("click", save);
     els.clear.addEventListener("click", clearAll);
 
-    els.modeAll.addEventListener("click", () => {
-      els.modeAll.classList.add("on");
-      els.modeOthers.classList.remove("on");
-      els.statMode.textContent = "Блокировать всех";
-      els.modeHint.textContent = "Включая тебя (KP). Самое строгое — никто не сможет пользоваться.";
-      _dirty = true;
-    });
-    els.modeOthers.addEventListener("click", () => {
-      els.modeOthers.classList.add("on");
-      els.modeAll.classList.remove("on");
-      els.statMode.textContent = "Только остальных";
-      els.modeHint.textContent = "Остальные не смогут, но ты (KP) по-прежнему всё можешь. Удобно тестировать.";
-      _dirty = true;
-    });
+    if (els.modeAll) els.modeAll.addEventListener("click", () => { els.modeHint.textContent = "Используй переключатели в каждой строке: Остальные / Я (KP)."; });
+    if (els.modeOthers) els.modeOthers.addEventListener("click", () => { els.modeHint.textContent = "Используй переключатели в каждой строке: Остальные / Я (KP)."; });
 
     els.note.addEventListener("input", () => { _dirty = true; });
 
@@ -400,7 +331,7 @@
     clearError();
     const me = await fetchMe();
     if (!me) {
-      location.href = "login.html?next=" + encodeURIComponent("locks.html");
+      location.href = "/login?next=" + encodeURIComponent("/manage/locks");
       return;
     }
     if (me.role !== "KP") {

@@ -29,11 +29,112 @@ function adminLogsRoutes() {
       kick: ["% kick%"],
       user: ["%USER%"],
       model: ["%MODEL%"],
-      money: ["%addmoney%"],
+      job: ["%JOB%"],
+      weapon: ["%WEAPON%"],
+      qmenu: ["%QMENU%"],
+      access: ["%ACCESS%"],
+      emoji: ["%EMOJI%"],
+      money: ["%addmoney%", "TECH_GANG_%"],
+      gang: ["TECH_GANG_%"],
       rank: ["%setgroup%"]
     };
     return map[group] || null;
   }
+
+  function humanizeTechGang(actionRaw, targetRaw, detailsRaw) {
+    if (!/^TECH_GANG_/i.test(actionRaw)) return null;
+    let d = {};
+    try { d = JSON.parse(detailsRaw || "{}"); } catch {}
+    const system = d.system === "legacy" ? "gangs" : "F4";
+    const target = targetRaw || `${d.system || "gang"}:${d.id || ""}`;
+    const amount = Number(d.amount || 0);
+    const amountText = Number.isFinite(amount) ? Math.abs(amount).toLocaleString("ru-RU") : "—";
+    const signWord = amount >= 0 ? "выдал" : "забрал";
+    const act = actionRaw.toUpperCase();
+    let label = "Изменил банду";
+    let details = `${system} · ID: ${d.id || "—"}`;
+    let icon = "🛡️";
+    if (act === "TECH_GANG_BANK_DELTA") {
+      label = amount >= 0 ? "Выдал деньги банде" : "Забрал деньги у банды";
+      icon = "💰";
+      details = `${system} · ${signWord} ${amountText} ₽`;
+    } else if (act === "TECH_GANG_SET_BANK") {
+      label = "Установил банк банды";
+      icon = "🏦";
+      details = `${system} · банк: ${Number(d.amount || 0).toLocaleString("ru-RU")} ₽`;
+    } else if (act === "TECH_GANG_REPUTATION_DELTA") {
+      label = amount >= 0 ? "Выдал репутацию банде" : "Забрал репутацию у банды";
+      icon = "⭐";
+      details = `${system} · ${signWord} ${amountText} репутации`;
+    } else if (act === "TECH_GANG_SET_REPUTATION") {
+      label = "Установил репутацию банды";
+      icon = "⭐";
+      details = `${system} · репутация: ${Number(d.amount || 0).toLocaleString("ru-RU")}`;
+    } else if (act === "TECH_GANG_XP_DELTA") {
+      label = amount >= 0 ? "Выдал XP банде" : "Забрал XP у банды";
+      icon = "📈";
+      details = `${system} · ${signWord} ${amountText} XP`;
+    } else if (act === "TECH_GANG_POINTS_DELTA") {
+      label = amount >= 0 ? "Выдал очки банде" : "Забрал очки у банды";
+      icon = "🎯";
+      details = `${system} · ${signWord} ${amountText} очков`;
+    } else if (act === "TECH_GANG_SET_LVL") {
+      label = "Установил уровень банды";
+      icon = "⬆️";
+      details = `${system} · уровень: ${Number(d.amount || 0).toLocaleString("ru-RU")}`;
+    } else if (act === "TECH_GANG_KICK_MEMBER") {
+      label = "Выгнал игрока из банды";
+      icon = "👢";
+      details = `${system} · игрок: ${d.steamid64 || "—"}`;
+    } else if (act === "TECH_GANG_DELETE_GANG") {
+      label = "Удалил банду";
+      icon = "🗑️";
+      details = `${system} · банда удалена`;
+    }
+    return { label, details, target, icon };
+  }
+
+
+  function fmtIdDetails(detailsRaw, labels) {
+    const raw = String(detailsRaw || "").trim();
+    for (const [key, label] of labels) {
+      const m = raw.match(new RegExp(key + "\\s*:\\s*([^,]+)", "i"));
+      if (m) return `${label}: ${m[1].trim()}`;
+    }
+    return raw || "—";
+  }
+
+  function humanizeKnownAction(actionRaw, targetRaw, detailsRaw) {
+    const a = String(actionRaw || "").toUpperCase();
+    const target = String(targetRaw || "");
+    const table = {
+      ADD_USER: ["Добавил пользователя сайта", "👤", () => detailsRaw || "—"],
+      EDIT_USER: ["Изменил пользователя сайта", "✏️", () => detailsRaw || "—"],
+      DELETE_USER: ["Удалил пользователя сайта", "🗑️", () => detailsRaw || "—"],
+      GIVE_MODEL: ["Выдал модель игроку", "🎭", () => fmtIdDetails(detailsRaw, [["model_id", "ID модели"]])],
+      REVOKE_MODEL: ["Забрал модель у игрока", "🎭", () => fmtIdDetails(detailsRaw, [["model_id", "ID модели"]])],
+      GIVE_WEAPON: ["Выдал оружие игроку", "🔫", () => fmtIdDetails(detailsRaw, [["weapon_id", "ID оружия"]])],
+      REVOKE_WEAPON: ["Забрал оружие у игрока", "🔫", () => fmtIdDetails(detailsRaw, [["weapon_id", "ID оружия"]])],
+      GIVE_JOB: ["Выдал профессию игроку", "💼", () => fmtIdDetails(detailsRaw, [["job_id", "ID профессии"]])],
+      REVOKE_JOB: ["Забрал профессию у игрока", "💼", () => fmtIdDetails(detailsRaw, [["job_id", "ID профессии"]])],
+      GIVE_QMENU: ["Выдал Q-Menu игроку", "🧰", () => String(detailsRaw || "").replace(/^type\s*:/i, "Тип:") || "—"],
+      REVOKE_QMENU: ["Забрал Q-Menu у игрока", "🧰", () => String(detailsRaw || "").replace(/^type\s*:/i, "Тип:") || "—"],
+      SET_PLAYER_ACCESS: ["Изменил доступы игрока", "🔑", () => String(detailsRaw || "").replace(/props_extra/i, "Доп. пропы").replace(/setmodel/i, "Доступ !setmodel") || "—"],
+      CLEAR_PLAYER_ACCESS: ["Очистил доступы игрока", "🧹", () => "Доступы сброшены"],
+      GIVE_EMOJI: ["Выдал эмодзи игроку", "😀", () => detailsRaw || "—"],
+      REVOKE_EMOJI: ["Забрал эмодзи у игрока", "😀", () => "Эмодзи удалено"],
+      PROMO_CREATE: ["Создал промокод", "🎟️", () => detailsRaw || "—"],
+      PROMO_EDIT: ["Изменил промокод", "🎟️", () => detailsRaw || "—"],
+      PROMO_DELETE: ["Удалил промокод", "🗑️", () => detailsRaw || "—"],
+      PROMO_TOGGLE: ["Переключил промокод", "🎟️", () => detailsRaw || "—"],
+      BLACKLIST_ADD: ["Занёс в ЧСП", "🚫", () => detailsRaw ? `Причина: ${detailsRaw}` : "—"],
+      BLACKLIST_REMOVE: ["Убрал из ЧСП", "✅", () => "Игрок удалён из чёрного списка"]
+    };
+    const row = table[a];
+    if (!row) return null;
+    return { label: row[0], icon: row[1], details: row[2](), target };
+  }
+
   function humanizeLog(row) {
     const actionRaw = String(row.action || "");
     const detailsRaw = String(row.details || "");
@@ -44,6 +145,10 @@ function adminLogsRoutes() {
     let details = detailsRaw;
     let target = String(row.target || "");
     let icon = "📌";
+    const techGang = humanizeTechGang(actionRaw, target, detailsRaw);
+    if (techGang) return techGang;
+    const known = humanizeKnownAction(actionRaw, target, detailsRaw);
+    if (known) return known;
     if (parts[0] === "blacklist_add") {
       label = "Занёс в ЧСП";
       icon = "🚫";

@@ -5,18 +5,44 @@
   const TOAST_TEXT = "Находится в активном редактировании.";
   const TOAST_TITLE = "Заблокировано KP";
 
+
+  const ROUTE_TO_PAGE = {
+    "/": "index.html",
+    "/players": "index.html",
+    "/bans": "bans.html",
+    "/stats": "stats.html",
+    "/admin-logs": "admin_logs.html",
+    "/blacklist": "blacklist.html",
+    "/promos": "promos.html",
+    "/zbt-access": "zbt_access.html",
+    "/messenger": "messenger.html",
+    "/manage": "manage.html",
+    "/manage/users": "add_user.html",
+    "/manage/permissions": "permissions.html",
+    "/manage/locks": "locks.html",
+    "/tech/money": "tech_money.html",
+    "/tech/gangs": "tech_gangs.html",
+    "/player": "player.html"
+  };
+  const PAGE_TO_ROUTE = Object.fromEntries(Object.entries(ROUTE_TO_PAGE).map(([route, page]) => [page, route]));
+  PAGE_TO_ROUTE["index.html"] = "/";
+
   const PAGE_LABELS = {
-    "index.html":      "Игроки",
-    "bans.html":       "Баны",
-    "stats.html":      "Статистика",
-    "admin_logs.html": "Логи админов",
-    "blacklist.html":  "Чёрный список проекта",
-    "zbt_access.html": "Доступ ЗБТ",
-    "add_user.html":   "Пользователи",
-    "permissions.html":"Права рангов",
-    "messenger.html":  "Мессенджер",
-    "player.html":     "Профиль игрока",
-    "locks.html":      "Блокировки",
+    "/":      "Игроки",
+    "/bans":       "Баны",
+    "/stats":      "Статистика",
+    "/admin-logs": "Логи админов",
+    "/blacklist":  "Чёрный список проекта",
+    "/zbt-access": "Доступ ЗБТ",
+    "/manage/users":   "Пользователи",
+    "/manage/permissions":"Права рангов",
+    "/messenger":  "Мессенджер",
+    "/player":     "Профиль игрока",
+    "/manage/locks":      "Блокировки",
+    "/tech/money": "Операции с деньгами",
+    "/tech/gangs": "Банды",
+    "tech_money.html": "Операции с деньгами",
+    "tech_gangs.html": "Банды",
     "emoji.html":      "Эмодзи"
   };
 
@@ -31,7 +57,8 @@
 
   function getCurrentPageKey() {
     try {
-      const p = window.location.pathname || "";
+      const p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+      if (ROUTE_TO_PAGE[p]) return ROUTE_TO_PAGE[p];
       const file = p.split("/").pop() || "";
       if (!file || !/\.html$/.test(file)) return null;
       return file;
@@ -150,9 +177,10 @@
   }
 
   function getPageForNav(a) {
-    if (a.hasAttribute("data-lock-page")) return a.getAttribute("data-lock-page");
-    const href = a.getAttribute("href") || "";
-    if (/\.html$/.test(href)) return href;
+    const raw = a.hasAttribute("data-lock-page") ? a.getAttribute("data-lock-page") : (a.getAttribute("href") || "");
+    const val = String(raw || "").replace(/\/+$/, "") || "/";
+    if (ROUTE_TO_PAGE[val]) return ROUTE_TO_PAGE[val];
+    if (/\.html$/.test(val)) return val.split("/").pop();
     return null;
   }
 
@@ -170,7 +198,7 @@
     a.classList.remove("locks-nav-blocked");
     a.removeAttribute("aria-disabled");
     const page = a.getAttribute("data-lock-page");
-    if (page) a.setAttribute("href", page);
+    if (page) a.setAttribute("href", PAGE_TO_ROUTE[page] || page);
     if (a.title && a.title.indexOf("🔒") === 0) a.removeAttribute("title");
   }
 
@@ -454,7 +482,7 @@
     if (!_currentPageKey) return;
     if (!_state || !_state.pages || !_state.pages[_currentPageKey]) return;
     if (!_state.applies_to_me) return;
-    if (_currentPageKey === "locks.html") return;
+    if (_currentPageKey === "/manage/locks") return;
     try {
       if (window.UI && window.UI.toast) {
         window.UI.toast({
@@ -466,7 +494,7 @@
       }
     } catch (e) {}
     setTimeout(() => {
-      try { location.replace("index.html"); } catch (e) { location.href = "index.html"; }
+      try { location.replace("/"); } catch (e) { location.href = "/"; }
     }, 600);
   }
 

@@ -40,7 +40,7 @@ function renderLogs(logs) {
     tr.innerHTML = `
             <td><div class="logTimeMain">${escapeHtml(log.time_formatted)}</div></td>
             <td><div><strong>${escapeHtml(log.admin_nick || log.admin_steamid64)}</strong></div><div class="muted mono" style="font-size:11px;margin-top:4px">${escapeHtml(log.admin_steamid64 || "—")}</div></td>
-            <td><span class="logAction"><span>${escapeHtml(log.action_icon || "")}</span><strong>${escapeHtml(log.action_label || log.action)}</strong></span><div class="muted mono" style="font-size:11px;margin-top:5px">${escapeHtml(log.action || "")}</div></td>
+            <td><span class="logAction"><span>${escapeHtml(log.action_icon || "")}</span><strong>${escapeHtml(log.action_label || log.action)}</strong></span></td>
             <td><div>${escapeHtml(log.target_steamid64 || log.target || "—")}</div><div class="muted mono" style="font-size:11px;margin-top:4px">${escapeHtml(log.target && log.target_steamid64 && log.target !== log.target_steamid64 ? log.target : "")}</div></td>
             <td><small style="color: var(--muted)">${escapeHtml(log.details_label || log.details || "—")}</small></td>
         `;

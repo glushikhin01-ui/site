@@ -41,20 +41,28 @@ function locksRoutes() {
     const body = req.body || {};
     const current = loadLocks();
 
-    if (body.mode === "all" || body.mode === "others") {
-      current.mode = body.mode;
-    }
-    if (body.permissions && typeof body.permissions === "object") {
-      current.permissions = {};
-      for (const k of PERMISSION_KEYS) {
-        current.permissions[k] = !!body.permissions[k];
-      }
-    }
-    if (body.pages && typeof body.pages === "object") {
-      current.pages = {};
-      for (const p of LOCKABLE_PAGES) {
-        current.pages[p.key] = !!body.pages[p.key];
-      }
+    const writePermMap = (src, key) => {
+      current[key] = {};
+      const source = src && typeof src === "object" ? src : {};
+      for (const k of PERMISSION_KEYS) current[key][k] = !!source[k];
+    };
+    const writePageMap = (src, key) => {
+      current[key] = {};
+      const source = src && typeof src === "object" ? src : {};
+      for (const p of LOCKABLE_PAGES) current[key][p.key] = !!source[p.key];
+    };
+    if (body.permissions_others || body.permissions_self || body.pages_others || body.pages_self) {
+      writePermMap(body.permissions_others, "permissions_others");
+      writePermMap(body.permissions_self, "permissions_self");
+      writePageMap(body.pages_others, "pages_others");
+      writePageMap(body.pages_self, "pages_self");
+    } else {
+      // Compatibility with old UI payload.
+      const mode = body.mode === "all" ? "all" : "others";
+      writePermMap(body.permissions, "permissions_others");
+      writePageMap(body.pages, "pages_others");
+      writePermMap(mode === "all" ? body.permissions : {}, "permissions_self");
+      writePageMap(mode === "all" ? body.pages : {}, "pages_self");
     }
     if (typeof body.note === "string") {
       current.note = String(body.note).slice(0, 200);
@@ -77,8 +85,10 @@ function locksRoutes() {
 
   r.post("/api/locks/clear", authGuard, requireKP, (req, res) => {
     const current = loadLocks();
-    current.permissions = {};
-    current.pages = {};
+    current.permissions_others = {};
+    current.permissions_self = {};
+    current.pages_others = {};
+    current.pages_self = {};
     current.updated_at = Math.floor(Date.now() / 1000);
     current.updated_by =
       req.session.user?.nickname || req.session.user?.steamid64 || "KP";

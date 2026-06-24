@@ -11,8 +11,8 @@ function toast(ok, title, text) {
 function nextUrl() {
   const u = new URL(location.href);
   const n = u.searchParams.get("next");
-  if (!n) return "index.html";
-  if (n.startsWith("http://") || n.startsWith("https://")) return "index.html";
+  if (!n) return "/";
+  if (n.startsWith("http://") || n.startsWith("https://")) return "/";
   if (!n.startsWith("/")) return n;
   return n.slice(1);
 }

@@ -227,7 +227,7 @@
       if (before) qs.set("before", before);
       const r = await fetch("./api/messenger/history?" + qs, { cache: "no-store", credentials: "include" });
       if (r.status === 401) {
-        location.href = "login.html";
+        location.href = "/login";
         return;
       }
       const d = await r.json();

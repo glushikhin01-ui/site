@@ -7519,3 +7519,511 @@ body {
     padding: 18px !important;
   }
 }
+
+/* Mobile and readability fixes */
+.navSectionTitle {
+  margin: 14px 6px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.navSectionLink,
+.navItem[data-auto-nav="tech-money"] {
+  margin-top: 2px;
+}
+.pName,
+.nickText,
+.modelTitle,
+.v,
+.k,
+.moneyDesc {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.pName {
+  max-width: 100%;
+  line-height: 1.25;
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  color: var(--text);
+}
+.playerCard > div:not(.avatarWrap) {
+  min-width: 0;
+  flex: 1;
+}
+.banPager {
+  margin-top: 14px;
+}
+.manageHub {
+  padding: 14px;
+}
+.hubTabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.hubTab {
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-weight: 800;
+}
+.hubTab.active {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), .22), rgba(var(--purple-rgb), .14));
+  border-color: rgba(var(--accent-rgb), .45);
+  color: var(--accent);
+}
+.manageFrame {
+  width: 100%;
+  height: calc(100vh - 190px);
+  min-height: 650px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg);
+}
+.moneyCounterparty {
+  display: grid;
+  gap: 3px;
+}
+.moneyCounterparty code,
+.moneyTable code {
+  font-size: 11px;
+  color: var(--muted);
+}
+.moneyIncome .moneyAmount { color: var(--ok); }
+.moneyExpense .moneyAmount { color: var(--danger); }
+.moneyDesc {
+  display: inline-block;
+  max-width: 360px;
+}
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  html { overflow: auto; }
+  .card:hover { transform: none; }
+  .profile { grid-template-columns: 1fr !important; gap: 14px; }
+  .profileLeft { position: static !important; }
+  .profileAva { max-width: 260px; margin-inline: auto; }
+  .btnGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row, .rowPlus { grid-template-columns: 1fr !important; }
+  .rowPlus .rowAction { justify-self: stretch; }
+  .hubTabs { display: grid; grid-template-columns: 1fr; }
+  .manageFrame { height: 78vh; min-height: 560px; }
+}
+@media (max-width: 640px) {
+  .main { padding-left: 10px !important; padding-right: 10px !important; }
+  .card, .cardIn { border-radius: 18px; padding: 14px; }
+  .tools { display: grid !important; grid-template-columns: 1fr; gap: 10px; }
+  .input, .select, .btn { min-height: 44px; font-size: 16px; }
+  .playerCard { flex-direction: row !important; text-align: left !important; align-items: flex-start; }
+  .avatarWrap { width: 56px !important; height: 56px !important; }
+  .badges { justify-content: flex-start !important; }
+  .pName { font-size: 14px; }
+  .table.mobileCards,
+  .moneyTable,
+  .banHistoryTable {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .moneyTable thead,
+  .banHistoryTable thead { display: none; }
+  .moneyTable tr,
+  .banHistoryTable tr {
+    display: block;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .moneyTable td,
+  .banHistoryTable td {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 4px !important;
+    border: 0 !important;
+    white-space: normal !important;
+  }
+  .moneyTable td::before,
+  .banHistoryTable td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .moneyDesc { max-width: none; }
+  .pager { flex-wrap: wrap; }
+}
+@media (max-width: 420px) {
+  .playerCard { padding: 12px; gap: 10px; }
+  .avatarWrap { width: 48px !important; height: 48px !important; border-radius: 12px; }
+  .btnGrid { grid-template-columns: 1fr; }
+  .moneyTable td,
+  .banHistoryTable td { grid-template-columns: 1fr; gap: 4px; }
+}
+html.embeddedPage body { overflow: auto; }
+html.embeddedPage .appScale { zoom: 1; height: auto; overflow: visible; }
+html.embeddedPage .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+html.embeddedPage .side,
+html.embeddedPage .mobileNavBtn,
+html.embeddedPage .mobileNavBackdrop { display: none !important; }
+html.embeddedPage .main { padding: 16px !important; }
+html.embeddedPage .topbar { margin-top: 0; }
+.techCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.techStat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+  box-shadow: var(--shadow-card);
+}
+.techStatIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(var(--accent-rgb), .16);
+  border: 1px solid rgba(var(--accent-rgb), .28);
+  font-size: 20px;
+}
+.techStatValue { font-size: 20px; font-weight: 900; color: var(--text); }
+.techStatTitle { font-size: 12px; color: var(--muted); font-weight: 700; }
+.gangGrid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 14px;
+}
+.gangCard {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(255,255,255,.04), rgba(255,255,255,.012));
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+.gangHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.gangName {
+  font-size: 17px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+.gangSystem,
+.gangCreated {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.gangBadge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .10);
+}
+.gangBadge.f4 { color: #fbbf24; border-color: rgba(251,191,36,.35); }
+.gangBadge.legacy { color: #38bdf8; border-color: rgba(56,189,248,.35); }
+.gangBadge.eui { color: #a78bfa; border-color: rgba(167,139,250,.35); }
+.gangOwner {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.gangOwner span { color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.gangOwner code { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.gangMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.gangMetrics > div {
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.025);
+}
+.gangMetrics span { display:block; color: var(--muted); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.gangMetrics strong { display:block; margin-top: 2px; font-size: 13px; overflow-wrap: anywhere; }
+.gangDesc,
+.gangRanks {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  margin-bottom: 10px;
+}
+.gangRanks strong { color: var(--text); }
+@media (max-width: 640px) {
+  .techCards,
+  .gangGrid { grid-template-columns: 1fr; }
+  .gangMetrics { grid-template-columns: 1fr; }
+  .gangHead { flex-direction: column; }
+}
+/* Keep tech section at the bottom and in the correct order */
+.side { display: flex; flex-direction: column; }
+.side .nav { flex: 1 1 auto; min-height: 0; }
+.techNavTitle { margin-top: auto !important; }
+.gangActions { margin-top: 14px; display:flex; gap:8px; }
+.gangModalOverlay {
+  position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center;
+  padding: 20px; background: rgba(0,0,0,.62); backdrop-filter: blur(4px);
+}
+.gangModal {
+  width: min(980px, 100%); max-height: 90vh; overflow: auto;
+  padding: 18px; border-radius: 22px; border: 1px solid var(--border);
+  background: var(--card); box-shadow: var(--shadow);
+}
+.gangModalHead { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.gangModalTitle { font-size: 22px; font-weight: 900; overflow-wrap:anywhere; }
+.modalMetrics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.gangControlBox { margin-top: 14px; padding: 14px; border-radius: 18px; border: 1px solid var(--border); background: rgba(0,0,0,.16); }
+.gangControlButtons { margin-top: 10px; display:flex; flex-wrap:wrap; gap:8px; }
+.gangMemberList { display:grid; gap:8px; }
+.gangMember { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:14px; border:1px solid var(--border); background:rgba(255,255,255,.025); }
+.gangMember > div { min-width:0; overflow-wrap:anywhere; }
+@media (max-width: 640px) {
+  .gangModalOverlay { padding: 8px; place-items: stretch; }
+  .gangModal { max-height: 96vh; border-radius: 18px; padding: 14px; }
+  .gangControlButtons { display:grid; grid-template-columns:1fr; }
+  .gangMember { flex-direction:column; align-items:stretch; }
+}
+/* Gang page polish */
+.techCards {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.gangTotalPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), .35);
+  background: rgba(var(--accent-rgb), .10);
+  width: fit-content;
+  box-shadow: none;
+}
+.gangTotalPill strong { font-size: 16px; font-weight: 950; color: var(--text); }
+.gangTotalPill em { font-size: 12px; font-style: normal; color: var(--muted); font-weight: 800; }
+.gangCard .gangBadge { display: none !important; }
+.gangOpenBtn { width: 100%; min-height: 44px; font-weight: 900; }
+.gangModalOverlay {
+  align-items: center;
+  justify-items: center;
+  padding: 18px;
+}
+.gangModal {
+  width: min(1180px, calc(100vw - 28px));
+  max-height: min(92vh, 900px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.gangModalHead {
+  margin: 0;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), .11), rgba(255,255,255,.02));
+  align-items: center;
+}
+.gangModalTitleWrap { min-width: 0; }
+.gangModalTitle { font-size: 28px; line-height: 1.08; }
+.gangCloseBtn {
+  width: auto !important;
+  min-width: 112px;
+  min-height: 42px;
+  flex: 0 0 auto;
+  font-weight: 900;
+}
+.gangModalBody {
+  padding: 18px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(320px, .85fr) minmax(420px, 1.15fr);
+  gap: 18px;
+}
+.gangModalMain,
+.gangMembersPanel {
+  min-width: 0;
+}
+.modalMetrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.modalMetrics > div {
+  padding: 13px 14px;
+}
+.modalMetrics span { font-size: 11px; }
+.modalMetrics strong { font-size: 16px; }
+.gangControlBox {
+  margin-top: 16px;
+  padding: 16px;
+}
+.gangControlTitle {
+  font-size: 16px;
+  font-weight: 950;
+  margin-bottom: 10px;
+}
+.gangAmountInput {
+  height: 50px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.gangControlHint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.gangControlButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.gangCtl {
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 900;
+}
+.gangDeleteBtn {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 48px;
+  font-weight: 950;
+}
+.gangPanelHead {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.gangPanelHead .h2 { margin: 0; }
+.gangMemberList {
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.gangMember {
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+  padding: 13px 14px;
+}
+.gangMember:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), .35);
+  background: rgba(var(--accent-rgb), .06);
+}
+.gangMemberInfo strong {
+  font-size: 15px;
+}
+.gangDeleteConfirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0,0,0,.70);
+  backdrop-filter: blur(5px);
+}
+.gangDeleteConfirm {
+  width: min(520px, 100%);
+  padding: 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(239,68,68,.35);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.gangDeleteConfirm .input {
+  margin: 14px 0;
+  height: 48px;
+  font-weight: 800;
+}
+.gangDeleteConfirm .confirmText strong {
+  color: var(--text);
+}
+.gangDeleteConfirm [data-ok]:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+@media (max-width: 960px) {
+  .gangModalBody { grid-template-columns: 1fr; }
+  .gangMemberList { max-height: none; }
+}
+@media (max-width: 640px) {
+  .gangModal { width: 100%; max-height: 96vh; }
+  .gangModalHead { padding: 14px; align-items: flex-start; }
+  .gangModalTitle { font-size: 22px; }
+  .gangCloseBtn { min-width: 90px; }
+  .gangModalBody { padding: 12px; gap: 12px; }
+  .modalMetrics,
+  .gangControlButtons { grid-template-columns: 1fr; }
+}
+/* Split locks: ordinary users vs KP-self */
+.splitLockItem,
+.splitPageItem {
+  align-items: stretch;
+}
+.splitLockInfo { min-width: 0; flex: 1; }
+.splitSwitches {
+  display: grid;
+  gap: 8px;
+  min-width: 150px;
+}
+.splitSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0,0,0,.14);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.splitSwitch .sw { width: 38px; height: 21px; }
+.splitSwitch .swSlider::before { width: 15px; height: 15px; }
+.splitSwitch .sw input:checked + .swSlider::before { transform: translateX(17px); }
+@media (max-width: 640px) {
+  .splitLockItem,
+  .splitPageItem { flex-direction: column; }
+  .splitSwitches { min-width: 0; width: 100%; }
+}

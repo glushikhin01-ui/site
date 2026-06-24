@@ -199,7 +199,7 @@ function makeCard(p) {
   card.appendChild(wrap);
   card.appendChild(box);
   card.addEventListener("click", () => {
-    location.href = `player.html?sid=${encodeURIComponent(p.steamid64)}`;
+    location.href = `/player?sid=${encodeURIComponent(p.steamid64)}`;
   });
   return card;
 }
@@ -318,7 +318,7 @@ async function load() {
     if (r.status === 401) {
       loading = false;
       const next = encodeURIComponent(location.pathname.replace(/^\//, "") + location.search);
-      location.href = `login.html?next=${next}`;
+      location.href = `/login?next=${next}`;
       return;
     }
     const data = await r.json().catch(() => null);

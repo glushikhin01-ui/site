@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ru">
 <head>
+  <base href="/">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Arizona • Выдача эмодзи</title>
@@ -28,18 +29,15 @@
     </div>
 
     <nav class="nav">
-      <a class="navItem" data-perm="view_players" data-lock-page="index.html" href="index.html">Игроки</a>
-      <a class="navItem" data-perm="view_bans" data-lock-page="bans.html" href="bans.html">Баны</a>
-      <a class="navItem" data-perm="view_stats" data-lock-page="stats.html" href="stats.html">Статистика</a>
-      <a class="navItem" data-perm="view_admin_logs" data-lock-page="admin_logs.html" href="admin_logs.html">Логи админов</a>
-      <a class="navItem" data-perm="view_blacklist" data-lock-page="blacklist.html" href="blacklist.html">Черный список проекта</a>
-      <a class="navItem" data-perm="view_promos" data-lock-page="promos.html" href="promos.html">Промокоды</a>
-      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="zbt_access.html" href="zbt_access.html">Доступ ЗБТ</a>
-      <a class="navItem" data-perm="manage_users" data-lock-page="add_user.html" href="add_user.html">Пользователи</a>
-      <a class="navItem" data-perm="manage_permissions" data-lock-page="permissions.html" href="permissions.html">Права рангов</a>
+      <a class="navItem" data-perm="view_players" data-lock-page="/" href="/">Игроки</a>
+      <a class="navItem" data-perm="view_bans" data-lock-page="/bans" href="/bans">Баны</a>
+      <a class="navItem" data-perm="view_stats" data-lock-page="/stats" href="/stats">Статистика</a>
+      <a class="navItem" data-perm="view_admin_logs" data-lock-page="/admin-logs" href="/admin-logs">Логи админов</a>
+      <a class="navItem" data-perm="view_blacklist" data-lock-page="/blacklist" href="/blacklist">Черный список проекта</a>
+      <a class="navItem" data-perm="view_promos" data-lock-page="/promos" href="/promos">Промокоды</a>
+      <a class="navItem" data-perm="manage_zbt_access" data-lock-page="/zbt-access" href="/zbt-access">Доступ ЗБТ</a>
       <a class="navItem active" data-perm="manage_emojis" data-lock-page="emoji.html" href="emoji.html">Выдача эмодзи</a>
-      <a class="navItem" data-perm="messenger" data-lock-page="messenger.html" href="messenger.html">Мессенджер</a>
-      <a class="navItem" data-role-only="KP" data-lock-page="locks.html" href="locks.html">Блокировки</a>
+      <a class="navItem" data-perm="messenger" data-lock-page="/messenger" href="/messenger">Мессенджер</a>
       <a class="navItem" href="#" id="logoutBtn">Выход</a>
     </nav>
 

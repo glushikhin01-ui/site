@@ -1,15 +1,18 @@
 const PAGE_LABELS = {
- "index.html": "Игроки",
- "bans.html": "Баны",
- "stats.html": "Статистика",
- "admin_logs.html": "Логи админов",
- "blacklist.html": "Чёрный список проекта",
- "zbt_access.html": "Доступ ЗБТ",
- "add_user.html": "Пользователи",
- "permissions.html": "Права рангов",
- "messenger.html": "Мессенджер",
- "player.html": "Профиль игрока",
- "locks.html": "Блокировки"
+ "/": "Игроки",
+ "/bans": "Баны",
+ "/stats": "Статистика",
+ "/admin-logs": "Логи админов",
+ "/blacklist": "Чёрный список проекта",
+ "/zbt-access": "Доступ ЗБТ",
+ "/manage/users": "Пользователи",
+ "/manage/permissions": "Права рангов",
+ "/messenger": "Мессенджер",
+ "/player": "Профиль игрока",
+ "/manage/locks": "Блокировки",
+ "/manage": "Управление",
+ "/tech/money": "Операции с деньгами",
+ "/tech/gangs": "Банды"
 };
 function pageLabel(key) {
  return PAGE_LABELS[key] || (key || "").replace(/\.html$/i, "");
@@ -93,6 +96,10 @@ function applyPerms(perms) {
  const need = el.getAttribute("data-role-only");
  el.style.display = (need && need === role) ? "" : "none";
  });
+ document.querySelectorAll("[data-manage-hub]").forEach((el) => {
+ const canManage = role === "KP" || permAllowed(perms && perms.manage_users) || permAllowed(perms && perms.manage_permissions);
+ el.style.display = canManage ? "" : "none";
+ });
  try {
  window.dispatchEvent(new CustomEvent("perms:updated", { detail: perms || {} }));
  } catch (e) {}
@@ -114,7 +121,7 @@ async function requireAuth() {
  const r = await fetch("./api/me", { cache: "no-store", credentials: "include" });
  if (!r.ok) {
  const next = encodeURIComponent(location.pathname.replace(/^\//, "") + location.search);
- location.href = `login.html?next=${next}`;
+ location.href = `/login?next=${next}`;
  throw new Error("NOT_AUTH");
  }
  return r.json();
@@ -125,7 +132,7 @@ async function doLogout() {
  sessionStorage.removeItem("arizona_perms");
  } catch (e) {}
  await fetch("./api/logout", { method: "POST", cache: "no-store", credentials: "include" }).catch(() => {});
- location.href = "login.html";
+ location.href = "/login";
 }
 document.addEventListener("click", (e) => {
  const t = e.target;
@@ -156,68 +163,84 @@ async function checkUserRole() {
 async function checkPageAccess(requiredPerm) {
  const role = await checkUserRole();
  if (!role) {
- location.href = "login.html";
+ location.href = "/login";
  return false;
  }
  if (!hasPerm(requiredPerm)) {
- location.href = "index.html";
+ location.href = "/";
  return false;
  }
  return true;
 }
-document.addEventListener("DOMContentLoaded", async () => {
- const path = window.location.pathname || "";
- try {
- if (window.__EARLY_ROLE) applyRoleClass(window.__EARLY_ROLE);
- if (window.__PERMS) applyPerms(window.__PERMS);
- } catch (e) {}
- const me = await checkUserRole();
- if (!me) return;
- const deny = () => {
- if (path.includes("index.html") || path === "/" || path === "") {
- location.href = "login.html";
- } else {
- location.href = "index.html";
- }
+function currentPageKey() {
+ const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+ const map = {
+  "/": "index.html",
+  "/players": "index.html",
+  "/bans": "bans.html",
+  "/stats": "stats.html",
+  "/admin-logs": "admin_logs.html",
+  "/blacklist": "blacklist.html",
+  "/promos": "promos.html",
+  "/zbt-access": "zbt_access.html",
+  "/messenger": "messenger.html",
+  "/manage": "manage.html",
+  "/manage/users": "add_user.html",
+  "/manage/locks": "locks.html",
+  "/manage/permissions": "permissions.html",
+  "/tech/money": "tech_money.html",
+  "/tech/gangs": "tech_gangs.html",
+  "/player": "player.html",
+  "/login": "login.html"
  };
- if ((path.includes("index.html") || path === "/" || path === "") && !hasPerm("view_players")) return deny();
- if (path.includes("add_user.html") && !hasPerm("manage_users")) return deny();
- if (path.includes("zbt_access.html") && !hasPerm("manage_zbt_access")) return deny();
- if (path.includes("admin_logs.html") && !hasPerm("view_admin_logs")) return deny();
- if (path.includes("blacklist.html") && !hasPerm("view_blacklist")) return deny();
- if (path.includes("permissions.html") && !hasPerm("manage_permissions")) return deny();
- if (path.includes("messenger.html") && !hasPerm("messenger")) return deny();
- if (path.includes("bans.html") && !hasPerm("view_bans")) return deny();
- if (path.includes("stats.html") && !hasPerm("view_stats")) return deny();
- if (path.includes("player.html") && !hasPerm("view_profile")) return deny();
- if (path.includes("locks.html")) {
+ if (map[path]) return map[path];
+ const file = path.split("/").pop() || "index.html";
+ return file.includes(".") ? file : "";
+}
+function goLogin() {
+ if ((window.location.pathname || "") === "/login" || (window.location.pathname || "").endsWith("/login.html")) return;
+ const next = encodeURIComponent((window.location.pathname || "/") + (window.location.search || ""));
+ location.href = "/login?next=" + next;
+}
+document.addEventListener("DOMContentLoaded", async () => {
+ const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+ try {
+  if (window.__EARLY_ROLE) applyRoleClass(window.__EARLY_ROLE);
+  if (window.__PERMS) applyPerms(window.__PERMS);
+ } catch (e) {}
+ if (path === "/login" || path.endsWith("/login.html")) return;
+ const me = await checkUserRole();
+ if (!me) { goLogin(); return; }
+ const deny = () => { location.href = "/"; };
  const role = (window.__ME && window.__ME.role) || me;
- if (role !== "KP") return deny();
- }
-
- if (path.includes(".html") && !path.includes("login.html")) {
+ if ((path === "/" || path === "/players" || path.endsWith("/index.html")) && !hasPerm("view_players")) return goLogin();
+ if (path === "/manage/users" && !hasPerm("manage_users")) return deny();
+ if (path === "/manage" && !(hasPerm("manage_users") || hasPerm("manage_permissions") || role === "KP")) return deny();
+ if (path === "/tech/money" && !hasPerm("view_money_logs")) return deny();
+ if (path === "/tech/gangs" && !hasPerm("view_money_logs")) return deny();
+ if (path === "/zbt-access" && !hasPerm("manage_zbt_access")) return deny();
+ if (path === "/admin-logs" && !hasPerm("view_admin_logs")) return deny();
+ if (path === "/blacklist" && !hasPerm("view_blacklist")) return deny();
+ if (path === "/manage/permissions" && !hasPerm("manage_permissions")) return deny();
+ if (path === "/messenger" && !hasPerm("messenger")) return deny();
+ if (path === "/bans" && !hasPerm("view_bans")) return deny();
+ if (path === "/stats" && !hasPerm("view_stats")) return deny();
+ if (path === "/player" && !hasPerm("view_profile")) return deny();
+ if (path === "/manage/locks" && role !== "KP") return deny();
  try {
- const r = await fetch("/api/locks/state", { cache: "no-store", credentials: "include" });
- if (r.ok) {
- const state = await r.json();
- if (state && state.ok && state.applies_to_me && state.pages) {
- const pageFile = (path.split("/").pop() || "").toLowerCase();
- if (state.pages[pageFile]) {
- try {
- if (window.UI && window.UI.toast) {
- window.UI.toast({
- title: "Заблокировано KP",
- text: "Раздел «" + pageLabel(pageFile) + "» сейчас в активном редактировании.",
- icon: "🔒",
- duration: 4500
- });
- }
+  const r = await fetch("/api/locks/state", { cache: "no-store", credentials: "include" });
+  if (r.status === 401) return goLogin();
+  if (r.ok) {
+   const state = await r.json();
+   const pageFile = currentPageKey();
+   if (state && state.ok && state.applies_to_me && state.pages && pageFile && state.pages[pageFile]) {
+    try {
+     if (window.UI && window.UI.toast) {
+      window.UI.toast({ title: "Заблокировано KP", text: "Раздел «" + pageLabel(pageFile) + "» сейчас в активном редактировании.", icon: "🔒", duration: 4500 });
+     }
+    } catch (e) {}
+    setTimeout(() => { location.href = "/"; }, 800);
+   }
+  }
  } catch (e) {}
- setTimeout(() => { location.href = "index.html"; }, 800);
- return;
- }
- }
- }
- } catch (e) {}
- }
 });

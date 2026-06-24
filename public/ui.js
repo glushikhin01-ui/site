@@ -29,6 +29,7 @@
     if (b) b.textContent = getTheme() === "blue" ? "🟡" : "🔵";
   }
   applyTheme(getTheme());
+  try { if (window.self !== window.top) document.documentElement.classList.add("embeddedPage"); } catch { document.documentElement.classList.add("embeddedPage"); }
   function ensureToastWrap() {
     let w = document.getElementById("toastWrap");
     if (!w) {
@@ -209,18 +210,22 @@
   document.addEventListener("DOMContentLoaded", () => {
     updateThemeBtn();
     netUpdate();
+    enhanceNav();
     setupMobileNav();
     const tb = document.getElementById("themeToggle");
     if (tb) tb.addEventListener("click", toggleTheme);
   });
   const NAV_ITEMS = [
-    { t: "Игроки", u: "index.html", i: "👥" },
-    { t: "Баны", u: "bans.html", i: "🔨" },
-    { t: "Статистика", u: "stats.html", i: "📊" },
-    { t: "Логи админов", u: "admin_logs.html", i: "📜" },
-    { t: "Чёрный список", u: "blacklist.html", i: "🚫" },
-    { t: "Пользователи", u: "add_user.html", i: "🧑‍💼" },
-    { t: "Права рангов", u: "permissions.html", i: "🛡️" }
+    { t: "Игроки", u: "/", i: "👥" },
+    { t: "Баны", u: "/bans", i: "🔨" },
+    { t: "Статистика", u: "/stats", i: "📊" },
+    { t: "Логи админов", u: "/admin-logs", i: "📜" },
+    { t: "Чёрный список", u: "/blacklist", i: "🚫" },
+    { t: "Пользователи", u: "/manage/users", i: "🧑‍💼" },
+    { t: "Права рангов", u: "/manage/permissions", i: "🛡️" },
+    { t: "Управление", u: "/manage", i: "⚙️" },
+    { t: "Тех.Раздел: деньги", u: "/tech/money", i: "💸" },
+    { t: "Тех.Раздел: банды", u: "/tech/gangs", i: "🛡️" }
   ];
   let cmdOverlay = null;
   function buildPalette() {
@@ -235,7 +240,7 @@
       const q = input.value.trim().toLowerCase();
       items = NAV_ITEMS.filter((n) => !q || n.t.toLowerCase().includes(q)).map((n) => ({ ...n }));
       if (/^\d{17}$/.test(input.value.trim())) {
-        items.unshift({ t: "Открыть профиль " + input.value.trim(), u: "player.html?sid=" + input.value.trim(), i: "🔎" });
+        items.unshift({ t: "Открыть профиль " + input.value.trim(), u: "/player?sid=" + input.value.trim(), i: "🔎" });
       }
       list.innerHTML = "";
       items.forEach((it, idx) => {
@@ -300,6 +305,43 @@
       else buildPalette();
     }
   });
+
+  function syncManagementLinks() {
+    const role = (window.__ME && window.__ME.role) || window.__EARLY_ROLE || "";
+    const canManage = role === "KP" || (typeof window.hasPerm === "function" && (window.hasPerm("manage_users") || window.hasPerm("manage_permissions")));
+    document.querySelectorAll("[data-manage-hub]").forEach((el) => { el.style.display = canManage ? "" : "none"; });
+  }
+  function enhanceNav() {
+    const nav = document.querySelector(".side .nav");
+    if (!nav) return;
+    const current = ((location.pathname || "/").replace(/\/+$/, "") || "/").toLowerCase();
+    // Пользователи / Права рангов / Блокировки теперь живут внутри единой вкладки «Управление».
+    nav.querySelectorAll('a[href="/manage/users"],a[href="/manage/permissions"],a[href="/manage/locks"]').forEach((a) => a.remove());
+    // Пересобираем тех.раздел, чтобы заголовок не оказывался снизу под ссылками.
+    nav.querySelectorAll('a[href="/tech/money"],a[href="/tech/gangs"],.navSectionTitle').forEach((el) => el.remove());
+    const logout = nav.querySelector("#logoutBtn")?.closest(".navItem") || nav.querySelector("#logoutBtn");
+    function addLink(id, text, href, attrs) {
+      if (nav.querySelector(`[data-auto-nav="${id}"]`) || nav.querySelector(`a[href="${href}"]`)) return null;
+      const a = document.createElement("a");
+      a.className = "navItem" + (current === href.toLowerCase() ? " active" : "");
+      a.href = href;
+      a.textContent = text;
+      a.dataset.autoNav = id;
+      for (const [k, v] of Object.entries(attrs || {})) a.setAttribute(k, v);
+      nav.insertBefore(a, logout || null);
+      return a;
+    }
+    addLink("manage", "Управление", "/manage", { "data-manage-hub": "1", "data-lock-page": "/manage" });
+    const title = document.createElement("div");
+    title.className = "navSectionTitle techNavTitle";
+    title.textContent = "Тех.Раздел";
+    nav.insertBefore(title, logout || null);
+    addLink("tech-money", "Операции с деньгами", "/tech/money", { "data-perm": "view_money_logs", "data-lock-page": "/tech/money" });
+    addLink("tech-gangs", "Банды", "/tech/gangs", { "data-perm": "view_money_logs", "data-lock-page": "/tech/gangs" });
+    syncManagementLinks();
+  }
+  window.addEventListener("perms:updated", syncManagementLinks);
+
   function setupMobileNav() {
     const side = document.querySelector(".side");
     const app = document.querySelector(".app");

@@ -494,7 +494,7 @@
       usageTbody.innerHTML = "";
       for (const u of items) {
         const tr = document.createElement("tr");
-        const profileUrl = u.steamid64 ? `player.html?sid=${encodeURIComponent(u.steamid64)}` : "#";
+        const profileUrl = u.steamid64 ? `/player?sid=${encodeURIComponent(u.steamid64)}` : "#";
         const rankName = resolveRank(u.rank_id);
         const rankColor = RANK_COLORS[rankName] || RANK_COLORS[rankName.toLowerCase()] || "var(--muted)";
         
