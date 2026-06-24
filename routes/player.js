@@ -12,12 +12,15 @@ import {
   checkVacBans,
   isOnlineEntryFresh
 } from "../lib/helpers.js";
+
 const HIGH_LEVEL_THRESHOLD = 80;
+
 function canViewIp(session) {
   const role = webNormalizeRole(session?.user?.role);
   const level = webRolesDef()[role]?.level || 0;
   return level >= HIGH_LEVEL_THRESHOLD;
 }
+
 function banIsActive(banLen, unbanTime, unbanReason, banTime) {
   const unbanReasonStr = String(unbanReason || "").trim();
   const isRealUnban = unbanReasonStr && !/^\d+\[STEAM_/.test(unbanReasonStr);
@@ -31,8 +34,10 @@ function banIsActive(banLen, unbanTime, unbanReason, banTime) {
   if (bt > 0) return now < bt + banLen;
   return false;
 }
-function playerRoutes(cfg) {
+
+function playerRoutes(cfg, steamApiLimiter) {
   const r = Router();
+
   async function baPreferredSvId(pool) {
     try {
       const [rows] = await pool.query("SELECT sv_id, COUNT(*) AS c FROM ba_ranks GROUP BY sv_id ORDER BY c DESC LIMIT 1");
@@ -41,6 +46,7 @@ function playerRoutes(cfg) {
       return "NOT_SET";
     }
   }
+
   async function tableExists(pool, table) {
     try {
       const [rows] = await pool.query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1", [table]);
@@ -49,6 +55,43 @@ function playerRoutes(cfg) {
       return false;
     }
   }
+
+  // FIX: Batch resolve warn admin names to prevent N+1 queries
+  async function batchResolveWarnAdmins(pool, warns) {
+    const adminSteamids = [...new Set(warns.map((w) => String(w.admin_steamid || "").trim()).filter(Boolean))];
+    if (!adminSteamids.length) return {};
+    
+    const nameMap = {};
+    try {
+      // Batch query web_users for all admin steamids
+      const placeholders = adminSteamids.map(() => "?").join(",");
+      const [rows] = await pool.query(
+        `SELECT steamid64, COALESCE(nickname,'') AS nickname FROM web_users WHERE steamid64 IN (${placeholders})`,
+        adminSteamids
+      );
+      for (const row of rows) {
+        nameMap[String(row.steamid64)] = decodeIfNeeded(row.nickname);
+      }
+    } catch {}
+    
+    // For remaining unresolved, batch query ba_users
+    const unresolved = adminSteamids.filter((s) => !nameMap[s]);
+    if (unresolved.length) {
+      try {
+        const placeholders = unresolved.map(() => "?").join(",");
+        const [rows] = await pool.query(
+          `SELECT steamid, name FROM ba_users WHERE steamid IN (${placeholders})`,
+          unresolved
+        );
+        for (const row of rows) {
+          nameMap[String(row.steamid)] = decodeIfNeeded(row.name);
+        }
+      } catch {}
+    }
+    
+    return nameMap;
+  }
+
   async function resolveWarnAdmin(pool, adminSteamid) {
     const raw = String(adminSteamid || "").trim();
     if (!raw) return "—";
@@ -68,6 +111,7 @@ function playerRoutes(cfg) {
     }
     return raw;
   }
+
   async function getWarns(pool, sid64) {
     if (!await tableExists(pool, "ba_warns")) return [];
     try {
@@ -88,7 +132,7 @@ function playerRoutes(cfg) {
           steamid: String(w.steamid || sid64),
           reason: decodeIfNeeded(w.reason || "Причина не указана"),
           admin_steamid: adminSteamid,
-          admin_name: await resolveWarnAdmin(pool, adminSteamid),
+          admin_name: "—", // Will be resolved in batch
           timestamp: parseInt(w.ts || 0, 10)
         });
       }
@@ -98,6 +142,7 @@ function playerRoutes(cfg) {
       return [];
     }
   }
+
   r.get("/api/player", authGuard, requirePerm("view_profile"), async (req, res) => {
     try {
       const sid64 = String(req.query.sid || "").trim();
@@ -106,6 +151,8 @@ function playerRoutes(cfg) {
       const online = readOnlineMap();
       const svId = await baPreferredSvId(pool);
       const sid32 = steamid64ToSteamid(sid64);
+
+      // FIX: Optimized single query for player data
       const [rows] = await pool.query(`
         SELECT u.steamid, u.name, u.firstjoined, u.lastseen, u.playtime,
           pd.Money AS money,
@@ -151,6 +198,7 @@ function playerRoutes(cfg) {
         }
       } catch {
       }
+
       const [bansRows] = await pool.query(`
         SELECT steamid, name, a_name, a_steamid, reason, ban_time, ban_len, unban_time, unban_reason
         FROM ba_bans WHERE steamid = ? OR steamid = ? ORDER BY ban_time DESC LIMIT 50
@@ -169,7 +217,18 @@ function playerRoutes(cfg) {
       }));
       const isBanned = bans.some((b) => b.active);
       const chspActive = !!(chsp && chsp.active);
+
+      // FIX: Batch resolve admin names in warns to prevent N+1 queries
       const warns = await getWarns(pool, sid64);
+      if (warns.length > 0) {
+        const adminNames = await batchResolveWarnAdmins(pool, warns);
+        for (const w of warns) {
+          const adminSid = String(w.admin_steamid || "");
+          const resolvedSid = /^\d{17}$/.test(adminSid) ? adminSid : steamidToSteamid64(adminSid);
+          w.admin_name = adminNames[resolvedSid] || adminNames[adminSid] || adminSid || "—";
+        }
+      }
+
       res.json({
         ok: true,
         steamid64: sid64,
@@ -197,7 +256,9 @@ function playerRoutes(cfg) {
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
-  r.get("/api/vac_check", authGuard, requirePerm("view_profile"), async (req, res) => {
+
+  // FIX: Rate limit VAC check endpoint to prevent Steam API abuse
+  r.get("/api/vac_check", authGuard, requirePerm("view_profile"), steamApiLimiter, async (req, res) => {
     const sid64 = String(req.query.sid || "").trim();
     if (!sid64 || !/^\d{17}$/.test(sid64)) return res.status(400).json({ ok: false, error: "BAD_SID" });
     const info = await checkVacBans(cfg.STEAM_API_KEY, sid64);
@@ -214,8 +275,10 @@ function playerRoutes(cfg) {
       ...!info ? { note: "Steam API недоступна" } : {}
     });
   });
+
   return r;
 }
+
 export {
   playerRoutes as default
 };

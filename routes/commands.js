@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { timingSafeEqual } from "crypto";
 import { requirePerm, hasPerm, getUserRole } from "../lib/roles.js";
 import { authGuard } from "../lib/guard.js";
 import { readQueueFile, writeQueueFile } from "../lib/helpers.js";
@@ -28,6 +29,7 @@ const PLAYER_RANKS = new Set([
   "vip",
   "User"
 ]);
+
 const ALLOWED_COMMANDS = [
   { perm: "kick", pattern: /^ba kick\b/ },
   { perm: "ban", pattern: /^ba (ban|perma)\b/ },
@@ -46,6 +48,7 @@ const ALLOWED_COMMANDS = [
   { perm: "give_job", pattern: /^ba (removedonate|takedonate|del_donate)\b/ },
   { perm: "manage_promos", pattern: /^promo_/ }
 ];
+
 function resolveCommandPerm(text) {
   const t = text.replace(/\s+/g, " ").toLowerCase().trim();
   for (const { perm, pattern } of ALLOWED_COMMANDS) {
@@ -53,8 +56,24 @@ function resolveCommandPerm(text) {
   }
   return "raw_console";
 }
+
+// FIX: constant-time string comparison to prevent timing attacks
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // Timing-safe: still compare same length
+    const tmp = Buffer.alloc(bufA.length);
+    timingSafeEqual(bufA, tmp);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
 function commandsRoutes(cfg) {
   const r = Router();
+
   r.post("/api/command", authGuard, async (req, res) => {
     const type = String(req.body.type || "console").trim();
     const text = String(req.body.text || "").trim();
@@ -113,14 +132,18 @@ function commandsRoutes(cfg) {
     }
     res.json({ ok: true, id });
   });
+
+  // FIX: requirePassword with constant-time comparison, no query param support (prevents URL leakage)
   function requirePassword(req, res) {
-    const pass = String(req.body?.password || req.query?.password || req.headers["x-api-password"] || "").trim();
-    if (!cfg.WEB_SECRET || pass !== cfg.WEB_SECRET) {
+    // Only accept password from body or x-api-password header - NOT from query string (leaks to logs/Referer)
+    const pass = String(req.body?.password || req.headers["x-api-password"] || "").trim();
+    if (!cfg.WEB_SECRET || !safeCompare(pass, cfg.WEB_SECRET)) {
       res.status(403).json({ ok: false, error: "BAD_PASSWORD" });
       return false;
     }
     return true;
   }
+
   r.get("/api/get", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
@@ -163,6 +186,7 @@ function commandsRoutes(cfg) {
       res.status(500).json([]);
     }
   });
+
   r.post("/api/mark", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
@@ -192,8 +216,10 @@ function commandsRoutes(cfg) {
       res.status(500).json({ ok: false, error: "INTERNAL_ERROR" });
     }
   });
+
   return r;
 }
+
 export {
   commandsRoutes as default
 };

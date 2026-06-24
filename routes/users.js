@@ -74,7 +74,7 @@ function usersRoutes() {
       if (existing.length > 0) return res.status(400).json({ ok: false, error: "USER_ALREADY_EXISTS" });
       const [cols] = await pool.query("SHOW COLUMNS FROM web_users LIKE 'added_at'");
       const hasAddedAt = cols.length > 0;
-      const hash = await bcrypt.hash(password, 10);
+      const hash = await bcrypt.hash(password, 12);
       if (hasAddedAt) {
         await pool.query("INSERT INTO web_users (steamid64, password_hash, role, nickname, added_at) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())", [steamid64, hash, role, nickname]);
       } else {
@@ -150,7 +150,7 @@ function usersRoutes() {
         const password = String(rawPass);
         if (password.length < 6) return res.status(400).json({ ok: false, error: "PASSWORD_TOO_SHORT" });
         if (password.length > 200) return res.status(400).json({ ok: false, error: "PASSWORD_TOO_LONG" });
-        const hash = await bcrypt.hash(password, 10);
+        const hash = await bcrypt.hash(password, 12);
         sets.push("password_hash = ?");
         params.push(hash);
         changes.push("пароль");

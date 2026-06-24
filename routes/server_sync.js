@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { timingSafeEqual } from "crypto";
 import { db } from "../lib/db.js";
 import { authGuard } from "../lib/guard.js";
 import { steamid64ToSteamid, decodeIfNeeded, stripPort } from "../lib/helpers.js";
@@ -22,23 +23,41 @@ async function ensureAccessTableSync() {
   }
 }
 
+// FIX: constant-time string comparison to prevent timing attacks
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    const tmp = Buffer.alloc(bufA.length);
+    timingSafeEqual(bufA, tmp);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
 function serverSyncRoutes(cfg) {
   const r = Router();
+
+  // FIX: requirePassword with constant-time comparison, no query param support (prevents URL leakage)
   function requirePassword(req, res) {
+    // Only accept from body, x-api-password header, or Authorization: Bearer header
+    // NOT from query string (leaks to server logs, Referer headers, browser history)
     const pass = String(
-      req.body?.password || req.query?.password || req.headers["x-api-password"] || (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() || ""
+      req.body?.password || req.headers["x-api-password"] || (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() || ""
     ).trim();
-    if (!cfg.WEB_SECRET || pass !== cfg.WEB_SECRET) {
+    if (!cfg.WEB_SECRET || !safeCompare(pass, cfg.WEB_SECRET)) {
       res.status(403).json({ ok: false, error: "BAD_PASSWORD" });
       return false;
     }
     return true;
   }
+
   r.all("/api/chsp_sync", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list").trim();
       if (action === "list") {
         const [players] = await pool.query("SELECT steamid64, steamid, nickname, ip, reason, added_by, active, added_at, updated_at FROM chsp_list");
@@ -108,11 +127,12 @@ function serverSyncRoutes(cfg) {
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
+
   r.all("/api/models_sync", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list_player_models").trim();
       if (action === "list_player_models") {
         const steamid32 = String(params.steamid32 || "").trim();
@@ -177,11 +197,12 @@ function serverSyncRoutes(cfg) {
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
+
   r.all("/api/weapons_sync", async (req, res) => {
     if (!requirePassword(req, res)) return;
     try {
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list_player_weapons").trim();
       if (action === "list_player_weapons") {
         const steamid32 = String(params.steamid32 || "").trim();
@@ -245,6 +266,7 @@ function serverSyncRoutes(cfg) {
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
+
   r.get("/api/get_steamid", authGuard, async (req, res) => {
     const name = String(req.query.name || "").trim();
     if (!name) return res.status(400).json({ ok: false, error: "EMPTY_NAME" });
@@ -266,7 +288,7 @@ function serverSyncRoutes(cfg) {
     if (!requirePassword(req, res)) return;
     try {
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list_player_jobs").trim();
 
       if (action === "list_player_jobs") {
@@ -339,7 +361,7 @@ function serverSyncRoutes(cfg) {
     try {
       await ensureAccessTableSync();
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "get").trim();
 
       if (action === "get") {
@@ -372,7 +394,7 @@ function serverSyncRoutes(cfg) {
     try {
       await ensurePromoTables();
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list").trim();
 
       if (action === "list") {
@@ -509,7 +531,7 @@ function serverSyncRoutes(cfg) {
     if (!requirePassword(req, res)) return;
     try {
       const pool = db();
-      const params = { ...req.query, ...req.body };
+      const params = req.body && Object.keys(req.body).length ? req.body : req.query;
       const action = String(params.action || "list_player_qmenu").trim();
 
       if (action === "list_player_qmenu") {
@@ -560,6 +582,7 @@ function serverSyncRoutes(cfg) {
 
   return r;
 }
+
 export {
   serverSyncRoutes as default
 };

@@ -3,12 +3,15 @@ import { db } from "../lib/db.js";
 import { requirePerm } from "../lib/roles.js";
 import { authGuard } from "../lib/guard.js";
 import { steamid64ToSteamid, decodeIfNeeded, stripPort, logAdminAction } from "../lib/helpers.js";
+
 function blacklistRoutes() {
   const r = Router();
+
   function sessionNickname(session) {
     const u = session?.user;
     return u?.nickname?.trim() || "Site";
   }
+
   r.get("/api/blacklist", authGuard, requirePerm("view_blacklist"), async (req, res) => {
     try {
       const pool = db();
@@ -18,35 +21,100 @@ function blacklistRoutes() {
          UNIX_TIMESTAMP(updated_at) AS updated_at_ts
          FROM chsp_list ORDER BY COALESCE(updated_at, added_at) DESC`
       );
-      const items = [];
+
+      // FIX: Batch resolve missing nicknames and IPs to prevent N+1 queries
+      const missingNickSids = [];
+      const missingIpSids = [];
+      
       for (const row of rows) {
+        const sid64 = String(row.steamid64 || "");
+        if (!sid64) continue;
+        let nick = decodeIfNeeded(row.nickname || "");
+        if (!nick || /^неизвестный игрок$/iu.test(nick.trim())) {
+          missingNickSids.push(sid64);
+        }
+        let ipVal = stripPort(row.ip || "");
+        if (!ipVal && sid64) {
+          missingIpSids.push(sid64);
+        }
+      }
+
+      // Batch resolve nicknames from ba_users
+      const nickMap = {};
+      if (missingNickSids.length) {
+        try {
+          const placeholders = missingNickSids.map(() => "?").join(",");
+          const [nickRows] = await pool.query(
+            `SELECT steamid, name FROM ba_users WHERE steamid IN (${placeholders})`,
+            missingNickSids
+          );
+          for (const nr of nickRows) {
+            if (nr?.name) nickMap[String(nr.steamid)] = decodeIfNeeded(nr.name);
+          }
+        } catch {}
+      }
+
+      // Batch resolve IPs from ba_iplog
+      const ipMap = {};
+      if (missingIpSids.length) {
+        try {
+          // Get IPs from ba_iplog - one query for all
+          const placeholders = missingIpSids.map(() => "?").join(",");
+          const [ipRows] = await pool.query(
+            `SELECT t.steamid, t.ip
+             FROM ba_iplog t
+             INNER JOIN (
+               SELECT steamid, MAX(lastseen) AS max_seen
+               FROM ba_iplog
+               WHERE steamid IN (${placeholders})
+               GROUP BY steamid
+             ) latest ON t.steamid = latest.steamid AND t.lastseen = latest.max_seen`,
+            missingIpSids
+          );
+          for (const ir of ipRows) {
+            if (ir?.ip) ipMap[String(ir.steamid)] = stripPort(ir.ip);
+          }
+        } catch {}
+
+        // For still missing IPs, try ba_bans as fallback
+        const stillMissing = missingIpSids.filter((s) => !ipMap[s]);
+        if (stillMissing.length) {
+          try {
+            const placeholders = stillMissing.map(() => "?").join(",");
+            const [banIpRows] = await pool.query(
+              `SELECT t.steamid, t.ip
+               FROM ba_bans t
+               INNER JOIN (
+                 SELECT steamid, MAX(ban_time) AS max_time
+                 FROM ba_bans
+                 WHERE steamid IN (${placeholders}) AND ip <> '0'
+                 GROUP BY steamid
+               ) latest ON t.steamid = latest.steamid AND t.ban_time = latest.max_time`,
+              stillMissing
+            );
+            for (const br of banIpRows) {
+              if (br?.ip) ipMap[String(br.steamid)] = stripPort(br.ip);
+            }
+          } catch {}
+        }
+      }
+
+      const items = rows.map((row) => {
         const sid64 = String(row.steamid64 || "");
         let sid = String(row.steamid || "");
         if (!sid && sid64 && /^\d+$/.test(sid64)) sid = steamid64ToSteamid(sid64);
+        
         let nick = decodeIfNeeded(row.nickname || "");
         if (!nick || /^неизвестный игрок$/iu.test(nick.trim())) {
-          try {
-            const [nr] = await pool.query("SELECT name FROM ba_users WHERE steamid = ? LIMIT 1", [sid64]);
-            if (nr[0]?.name) nick = decodeIfNeeded(nr[0].name);
-          } catch {
-          }
+          nick = nickMap[sid64] || nick || sid64;
         }
+        
         let ipVal = stripPort(row.ip || "");
-        if (!ipVal && sid64 && /^\d+$/.test(sid64)) {
-          try {
-            const [ir] = await pool.query("SELECT ip FROM ba_iplog WHERE steamid = ? ORDER BY lastseen DESC LIMIT 1", [sid64]);
-            if (ir[0]) ipVal = stripPort(ir[0].ip);
-          } catch {
-          }
-          if (!ipVal) {
-            try {
-              const [ir2] = await pool.query("SELECT ip FROM ba_bans WHERE steamid = ? AND ip <> '0' ORDER BY ban_time DESC LIMIT 1", [sid64]);
-              if (ir2[0]) ipVal = stripPort(ir2[0].ip);
-            } catch {
-            }
-          }
+        if (!ipVal) {
+          ipVal = ipMap[sid64] || "";
         }
-        items.push({
+        
+        return {
           steamid64: sid64,
           steamid: sid,
           nickname: nick,
@@ -56,14 +124,16 @@ function blacklistRoutes() {
           active: parseInt(row.active ?? 1, 10),
           added_at: parseInt(row.added_at_ts || 0, 10),
           updated_at: parseInt(row.updated_at_ts || 0, 10)
-        });
-      }
+        };
+      });
+
       res.json({ ok: true, items });
     } catch (e) {
       console.error("blacklist error:", e.message);
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
+
   r.post("/api/chsp_action", authGuard, requirePerm("manage_blacklist"), async (req, res) => {
     try {
       const pool = db();
@@ -73,7 +143,9 @@ function blacklistRoutes() {
       const nickname = String(req.body.nickname || "").trim();
       const reason = String(req.body.reason || "").trim();
       const addedBy = sessionNickname(req.session);
+
       if (!action) return res.status(400).json({ ok: false, error: "NO_ACTION" });
+
       if (action === "add") {
         if (!steamid64 || !/^\d{17}$/.test(steamid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
         const steamid = steamid64ToSteamid(steamid64);
@@ -98,6 +170,7 @@ function blacklistRoutes() {
         }
         return res.json({ ok: true });
       }
+
       if (action === "remove") {
         if (!steamid64 || !/^\d{17}$/.test(steamid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
         await pool.query("DELETE FROM chsp_list WHERE steamid64 = ? LIMIT 1", [steamid64]);
@@ -109,19 +182,23 @@ function blacklistRoutes() {
         }
         return res.json({ ok: true });
       }
+
       if (action === "remove_ip") {
         if (!ip) return res.status(400).json({ ok: false, error: "NO_IP" });
         await pool.query("DELETE FROM chsp_ip_list WHERE ip = ? LIMIT 1", [ip]);
         return res.json({ ok: true });
       }
+
       return res.status(400).json({ ok: false, error: "UNKNOWN_ACTION" });
     } catch (e) {
       console.error("chsp_action error:", e.message);
       res.status(500).json({ ok: false, error: "DB_ERROR" });
     }
   });
+
   return r;
 }
+
 export {
   blacklistRoutes as default
 };

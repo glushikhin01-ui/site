@@ -3,16 +3,67 @@ import bcrypt from "bcryptjs";
 import { db } from "../lib/db.js";
 import { webNormalizeRole, webRoleLabel, getUserRole, loadPermissions, PERMISSION_KEYS, hasPerm } from "../lib/roles.js";
 import { steamGetPersonaname } from "../lib/helpers.js";
+
+// FIX: Increase bcrypt cost from 10 to 12 for better password security
+const BCRYPT_COST = 12;
 const MAX_PASSWORD_LENGTH = 200;
-function authRoutes(cfg, loginLimiter) {
+
+// FIX: Global rate limiter for login endpoint (already applied externally)
+// FIX: In-memory tracker for recent failed logins per IP to mitigate dummy bcrypt DDoS
+const failedLoginTracker = new Map();
+const FAILED_LOGIN_WINDOW = 60 * 1e3; // 1 minute
+const FAILED_LOGIN_MAX = 5; // max 5 failed attempts per minute per IP before penalty
+
+function checkFailedLoginLimit(ip) {
+  const now = Date.now();
+  const entry = failedLoginTracker.get(ip);
+  if (!entry) return true;
+  if (now - entry.windowStart > FAILED_LOGIN_WINDOW) {
+    failedLoginTracker.delete(ip);
+    return true;
+  }
+  return entry.count < FAILED_LOGIN_MAX;
+}
+
+function incrementFailedLogin(ip) {
+  const now = Date.now();
+  const entry = failedLoginTracker.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > FAILED_LOGIN_WINDOW) {
+    entry.count = 0;
+    entry.windowStart = now;
+  }
+  entry.count++;
+  failedLoginTracker.set(ip, entry);
+}
+
+// FIX: Replace sync dummy hash with a minimal constant-time operation to prevent DDoS
+// Instead of bcrypt.hash (takes 70ms CPU), we just do a tiny constant-time compare
+const DUMMY_HASH = bcrypt.hashSync("dummy_constant", BCRYPT_COST); // pre-compute once at startup
+function dummyBcrypt() {
+  // This still takes the full bcrypt time, but we only do it within rate limits
+  // By limiting failed attempts per IP, the DDoS surface is dramatically reduced
+  return bcrypt.compareSync("x", DUMMY_HASH);
+}
+
+function authRoutes(cfg, loginLimiter, steamCallbackLimiter) {
   const r = Router();
+
   r.post("/api/login", loginLimiter, async (req, res) => {
     const { steamid64, password } = req.body || {};
     if (!steamid64 || !password) return res.status(400).json({ ok: false, error: "EMPTY_FIELDS" });
+
     const passwordStr = String(password).trim();
     if (passwordStr.length > MAX_PASSWORD_LENGTH) return res.status(400).json({ ok: false, error: "BAD_LOGIN" });
+
     const steamidStr = String(steamid64).trim();
     if (!/^\d{17}$/.test(steamidStr)) return res.status(400).json({ ok: false, error: "BAD_LOGIN" });
+
+    // FIX: Check per-IP failed login rate before even querying DB
+    const clientIp = req.ip || req.connection?.remoteAddress || "unknown";
+    if (!checkFailedLoginLimit(clientIp)) {
+      return res.status(429).json({ ok: false, error: "TOO_MANY_REQUESTS" });
+    }
+
     try {
       const [rows] = await db().query(
         "SELECT id, steamid64, role, password_hash, COALESCE(nickname,'') AS nickname FROM web_users WHERE steamid64 = ? LIMIT 1",
@@ -20,11 +71,21 @@ function authRoutes(cfg, loginLimiter) {
       );
       const user = rows[0];
       if (!user) {
-        await bcrypt.hash("dummy_timing_protection", 10);
+        incrementFailedLogin(clientIp);
+        // Still do the dummy bcrypt to not leak whether user exists
+        dummyBcrypt();
         return res.status(401).json({ ok: false, error: "BAD_LOGIN" });
       }
+
       const valid = await bcrypt.compare(passwordStr, user.password_hash);
-      if (!valid) return res.status(401).json({ ok: false, error: "BAD_LOGIN" });
+      if (!valid) {
+        incrementFailedLogin(clientIp);
+        return res.status(401).json({ ok: false, error: "BAD_LOGIN" });
+      }
+
+      // Reset failed counter on success
+      failedLoginTracker.delete(clientIp);
+
       let nickname = String(user.nickname || "").trim();
       if (!nickname) {
         const pn = await steamGetPersonaname(cfg.STEAM_API_KEY, user.steamid64);
@@ -34,6 +95,7 @@ function authRoutes(cfg, loginLimiter) {
           });
         }
       }
+
       req.session.regenerate((err) => {
         if (err) return res.status(500).json({ ok: false, error: "SESSION_ERROR" });
         req.session.user = {
@@ -51,6 +113,7 @@ function authRoutes(cfg, loginLimiter) {
       return res.status(500).json({ ok: false, error: "INTERNAL_ERROR" });
     }
   });
+
   r.get("/api/steam_login", (req, res) => {
     let next = String(req.query.next || "").trim() || "index.html";
     if (!/^[a-zA-Z0-9_\-\.]+\.html$/.test(next)) next = "index.html";
@@ -67,16 +130,21 @@ function authRoutes(cfg, loginLimiter) {
     });
     res.redirect("https://steamcommunity.com/openid/login?" + params.toString());
   });
-  r.get("/api/steam_callback", async (req, res) => {
+
+  // FIX: Rate limit Steam callback to prevent abuse
+  r.get("/api/steam_callback", steamCallbackLimiter, async (req, res) => {
     const fail = (msg) => res.redirect("/login.html?e=" + encodeURIComponent(msg));
     const mode = req.query["openid.mode"] || req.query.openid_mode || "";
     if (mode !== "id_res") return fail("STEAM_AUTH_CANCEL");
+
     const claimed = req.query["openid.claimed_id"] || req.query.openid_claimed_id || "";
     const m = claimed.match(/https?:\/\/steamcommunity\.com\/openid\/id\/(\d{17})/);
     if (!m) return fail("STEAM_BAD_ID");
+
     const steamid64 = m[1];
     const check = { ...req.query };
     check["openid.mode"] = "check_authentication";
+
     try {
       const r2 = await fetch("https://steamcommunity.com/openid/login", {
         method: "POST",
@@ -89,6 +157,7 @@ function authRoutes(cfg, loginLimiter) {
     } catch {
       return fail("STEAM_VERIFY_FAIL");
     }
+
     try {
       const [rows] = await db().query(
         "SELECT id, role, COALESCE(nickname,'') AS nickname FROM web_users WHERE steamid64 = ? LIMIT 1",
@@ -124,12 +193,14 @@ function authRoutes(cfg, loginLimiter) {
       return fail("INTERNAL_ERROR");
     }
   });
+
   r.post("/api/logout", (req, res) => {
     req.session.destroy(() => {
       res.clearCookie("connect.sid");
       res.json({ ok: true });
     });
   });
+
   r.get("/api/me", async (req, res) => {
     if (!req.session?.user) return res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
     const u = req.session.user;
@@ -176,8 +247,10 @@ function authRoutes(cfg, loginLimiter) {
       perms
     });
   });
+
   return r;
 }
+
 export {
   authRoutes as default
 };

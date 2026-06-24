@@ -40,18 +40,61 @@ async function columnExists(table, column) {
   return rows.length > 0;
 }
 
+// FIX: Validate table and column names to prevent SQL injection in ALTER TABLE
+const VALID_TABLE_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,64}$/;
+const VALID_COLUMN_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,64}$/;
+
+function validateSqlIdentifier(name, regex) {
+  if (!regex.test(name)) {
+    throw new Error(`Invalid SQL identifier: ${name}`);
+  }
+  return name;
+}
+
 async function addColumnIfMissing(table, column, ddl) {
+  // FIX: Validate identifiers before using in template literals
+  validateSqlIdentifier(table, VALID_TABLE_RE);
+  validateSqlIdentifier(column, VALID_COLUMN_RE);
+  
+  if (ddl) {
+    // Sanitize ddl as well - only allow known column definitions
+    const allowedDefs = [
+      "INT UNSIGNED NOT NULL DEFAULT 0",
+      "VARCHAR(32) DEFAULT NULL",
+      "VARCHAR(64) DEFAULT NULL",
+      "VARCHAR(64) NOT NULL DEFAULT ''",
+      "TINYINT(1) NOT NULL DEFAULT 1"
+    ];
+    if (!allowedDefs.includes(ddl)) {
+      console.error(`Potentially unsafe DDL rejected: ${ddl}`);
+      return;
+    }
+  }
+  
   if (!await columnExists(table, column)) {
-    await db().query(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+    // Use prepared statements for table/column when possible, but ALTER TABLE doesn't support them
+    // The identifiers have been validated above
+    await db().query(`ALTER TABLE ${validateSqlIdentifier(table, VALID_TABLE_RE)} ADD COLUMN ${validateSqlIdentifier(column, VALID_COLUMN_RE)} ${ddl}`);
   }
 }
 
 async function addIndexIfMissing(table, indexName, ddl) {
+  // FIX: Validate identifiers
+  validateSqlIdentifier(table, VALID_TABLE_RE);
+  validateSqlIdentifier(indexName.replace(/^UNIQUE KEY /i, "").replace(/^KEY /i, ""), VALID_TABLE_RE);
+  
   const [rows] = await db().query(
     "SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1",
-    [table, indexName]
+    [table, indexName.replace(/^UNIQUE KEY /i, "").replace(/^KEY /i, "")]
   );
-  if (!rows.length) await db().query(`ALTER TABLE ${table} ADD ${ddl}`);
+  if (!rows.length) {
+    // Validate the ddl structure more carefully
+    if (!/^(UNIQUE )?KEY\s+\w+\s+\(\w+(,\s*\w+)*\)$/i.test(ddl)) {
+      console.error(`Potentially unsafe INDEX DDL rejected: ${ddl}`);
+      return;
+    }
+    await db().query(`ALTER TABLE ${validateSqlIdentifier(table, VALID_TABLE_RE)} ADD ${ddl}`);
+  }
 }
 
 async function ensurePromoTables() {
@@ -130,7 +173,7 @@ function selectListSql(where = "", having = "") {
 function promosRoutes() {
   const r = Router();
 
-  // GET /api/promos — список всех промокодов
+  // GET /api/promos
   r.get("/api/promos", authGuard, requirePerm("view_promos"), async (req, res) => {
     try {
       await ensurePromoTables();
@@ -142,7 +185,7 @@ function promosRoutes() {
     }
   });
 
-  // GET /api/promos/usage — кто активировал конкретный промокод
+  // GET /api/promos/usage
   r.get("/api/promos/usage", authGuard, requirePerm("view_promos"), async (req, res) => {
     try {
       await ensurePromoTables();
@@ -162,7 +205,7 @@ function promosRoutes() {
 
       const items = rows.map((r2) => ({
         ...r2,
-        nickname: decodeIfNeeded(r2.current_nickname || r2.nickname || "—"),
+        nickname: decodeIfNeeded(r2.current_nickname || r2.nickname || "\u2014"),
         used_at: parseInt(r2.used_at || 0, 10)
       }));
 
@@ -173,7 +216,7 @@ function promosRoutes() {
     }
   });
 
-  // POST /api/promos — CRUD
+  // POST /api/promos
   r.post("/api/promos", authGuard, requirePerm("manage_promos"), async (req, res) => {
     try {
       await ensurePromoTables();

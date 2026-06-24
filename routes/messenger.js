@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { existsSync, mkdirSync, createReadStream, statSync } from "fs";
+import { existsSync, mkdirSync, createReadStream, statSync, readFileSync, unlinkSync } from "fs";
 import { join, dirname, extname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
@@ -10,11 +10,14 @@ import { appendMessage, readLastMessages, deleteMessage } from "../lib/messenger
 import { decodeIfNeeded } from "../lib/helpers.js";
 import { getCustomAvatarUrl } from "../lib/avatars.js";
 import { db } from "../lib/db.js";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, "..", "data", "uploads");
+
 function ensureUploads() {
   if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 }
+
 async function enrichMessageAuthors(items) {
   if (!Array.isArray(items) || !items.length) return items;
   const sids = [...new Set(items.flatMap((m) => [String(m?.steamid64 || "").trim(), String(m?.reply_to?.steamid64 || "").trim()]).filter((s) => /^\d{17}$/.test(s)))];
@@ -36,11 +39,11 @@ async function enrichMessageAuthors(items) {
       if (!fresh && !replyFresh) return m;
       return {
         ...m,
-        nick: fresh?.nick || m.nick || m.steamid64 || "—",
+        nick: fresh?.nick || m.nick || m.steamid64 || "\u2014",
         role: fresh?.role || m.role || "",
         reply_to: m.reply_to ? {
           ...m.reply_to,
-          nick: replyFresh?.nick || m.reply_to.nick || m.reply_to.steamid64 || "—"
+          nick: replyFresh?.nick || m.reply_to.nick || m.reply_to.steamid64 || "\u2014"
         } : null
       };
     });
@@ -48,10 +51,11 @@ async function enrichMessageAuthors(items) {
     return items;
   }
 }
+
 async function currentMessengerUser(sessionUser) {
   const sid = String(sessionUser?.steamid64 || "").trim();
   if (!/^\d{17}$/.test(sid)) {
-    return { steamid64: sid, nick: sessionUser?.nickname || sid || "—", role: sessionUser?.role || "" };
+    return { steamid64: sid, nick: sessionUser?.nickname || sid || "\u2014", role: sessionUser?.role || "" };
   }
   try {
     const [rows] = await db().query("SELECT COALESCE(nickname,'') AS nickname, COALESCE(role,'') AS role FROM web_users WHERE steamid64 = ? LIMIT 1", [sid]);
@@ -66,9 +70,12 @@ async function currentMessengerUser(sessionUser) {
     }
   } catch {
   }
-  return { steamid64: sid, nick: sessionUser?.nickname || sid || "—", role: webRoleLabel(webNormalizeRole(sessionUser?.role)) };
+  return { steamid64: sid, nick: sessionUser?.nickname || sid || "\u2014", role: webRoleLabel(webNormalizeRole(sessionUser?.role)) };
 }
+
 const MAX_SIZE = 25 * 1024 * 1024;
+
+// FIX: Remove SVG from allowed types to prevent XSS via SVG with embedded scripts
 const ALLOWED = new Map([
   ["image/jpeg", ".jpg"],
   ["image/jpg", ".jpg"],
@@ -77,7 +84,6 @@ const ALLOWED = new Map([
   ["image/gif", ".gif"],
   ["image/webp", ".webp"],
   ["image/bmp", ".bmp"],
-  ["image/svg+xml", ".svg"],
   ["image/avif", ".avif"],
   ["image/heic", ".heic"],
   ["image/heif", ".heif"],
@@ -120,89 +126,90 @@ const ALLOWED = new Map([
   ["application/vnd.ms-powerpoint", ".ppt"],
   ["application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx"]
 ]);
+
+// FIX: Validate magic bytes to prevent fake content-type uploads
+function checkMagicBytes(filepath, mimeType) {
+  try {
+    const buf = readFileSync(filepath);
+    if (buf.length < 4) return false;
+    
+    // JPEG
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) {
+      return true;
+    }
+    // PNG
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) {
+      return true;
+    }
+    // GIF
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+      return true;
+    }
+    // WEBP
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) {
+      if (buf.length >= 12 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) {
+        return true;
+      }
+    }
+    // BMP
+    if (buf[0] === 0x42 && buf[1] === 0x4D) return true;
+    // PDF
+    if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return true;
+    // ZIP
+    if (buf[0] === 0x50 && buf[1] === 0x4B) return true;
+    // RAR
+    if (buf[0] === 0x52 && buf[1] === 0x61 && buf[2] === 0x72) return true;
+    // 7z
+    if (buf[0] === 0x37 && buf[1] === 0x7A) return true;
+    // GZip
+    if (buf[0] === 0x1F && buf[1] === 0x8B) return true;
+    // Audio/video - trust mime
+    if (mimeType.startsWith("audio/") || mimeType.startsWith("video/")) return true;
+    // Text
+    if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType === "application/xml") return true;
+    // RTF
+    if (buf[0] === 0x7B && buf[1] === 0x5C && buf[2] === 0x72) return true;
+    // OLE2 (old office)
+    if (buf[0] === 0xD0 && buf[1] === 0xCF && buf[2] === 0x11 && buf[3] === 0xE0) return true;
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 const ALLOWED_EXT = new Set([
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".gif",
-  ".webp",
-  ".bmp",
-  ".svg",
-  ".avif",
-  ".heic",
-  ".heif",
-  ".tiff",
-  ".mp4",
-  ".webm",
-  ".mov",
-  ".mkv",
-  ".avi",
-  ".3gp",
-  ".mpeg",
-  ".mp3",
-  ".ogg",
-  ".wav",
-  ".weba",
-  ".aac",
-  ".m4a",
-  ".flac",
-  ".pdf",
-  ".zip",
-  ".7z",
-  ".rar",
-  ".gz",
-  ".tar",
-  ".txt",
-  ".csv",
-  ".md",
-  ".rtf",
-  ".json",
-  ".xml",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".ppt",
-  ".pptx"
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+  ".avif", ".heic", ".heif", ".tiff",
+  ".mp4", ".webm", ".mov", ".mkv", ".avi", ".3gp", ".mpeg",
+  ".mp3", ".ogg", ".wav", ".weba", ".aac", ".m4a", ".flac",
+  ".pdf", ".zip", ".7z", ".rar", ".gz", ".tar",
+  ".txt", ".csv", ".md", ".rtf", ".json", ".xml",
+  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"
 ]);
+
 const BLOCKED_EXT = new Set([
-  ".exe",
-  ".bat",
-  ".cmd",
-  ".com",
-  ".scr",
-  ".msi",
-  ".dll",
-  ".sh",
-  ".bash",
-  ".ps1",
-  ".vbs",
-  ".js",
-  ".mjs",
-  ".jar",
-  ".apk",
-  ".app",
-  ".deb",
-  ".rpm",
-  ".php",
-  ".py",
-  ".rb",
-  ".pl",
-  ".html",
-  ".htm",
-  ".svgz"
+  ".exe", ".bat", ".cmd", ".com", ".scr", ".msi", ".dll",
+  ".sh", ".bash", ".ps1", ".vbs", ".js", ".mjs", ".jar", ".apk",
+  ".app", ".deb", ".rpm", ".php", ".py", ".rb", ".pl",
+  ".html", ".htm", ".svgz"
 ]);
+
 function fileExt(name) {
   return extname(String(name || "")).toLowerCase() || "";
 }
+
 function isAllowedFile(file) {
   const ext = fileExt(file.originalname);
   if (BLOCKED_EXT.has(ext)) return false;
+  // Exclude SVG explicitly
+  if (ext === ".svg") return false;
   if (ALLOWED.has(file.mimetype)) return true;
   if (ALLOWED_EXT.has(ext)) return true;
   if (file.mimetype === "application/octet-stream" && ext && ALLOWED_EXT.has(ext)) return true;
   return false;
 }
+
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     ensureUploads();
@@ -213,6 +220,7 @@ const storage = multer.diskStorage({
     cb(null, randomUUID() + ext.replace(/[^a-z0-9.]/gi, "").slice(0, 8));
   }
 });
+
 const upload = multer({
   storage,
   limits: { fileSize: MAX_SIZE, files: 5 },
@@ -225,21 +233,26 @@ const upload = multer({
     }
   }
 });
+
 function kindOf(mime, name) {
   const ext = fileExt(name);
-  if (mime.startsWith("image/") || [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".avif", ".heic", ".tiff"].includes(ext)) return "image";
+  if (mime.startsWith("image/") && mime !== "image/svg+xml" ||
+      [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif", ".heic", ".tiff"].includes(ext)) return "image";
   if (mime.startsWith("video/") || [".mp4", ".webm", ".mov", ".mkv", ".avi", ".3gp"].includes(ext)) return "video";
   if (mime.startsWith("audio/") || [".mp3", ".ogg", ".wav", ".weba", ".aac", ".m4a", ".flac"].includes(ext)) return "audio";
   return "file";
 }
+
 function messengerRoutes() {
   const r = Router();
+
   r.get("/api/messenger/history", authGuard, requirePerm("messenger"), async (req, res) => {
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || "60", 10)));
     const beforeId = req.query.before ? String(req.query.before) : null;
     const { items, hasMore } = readLastMessages(limit, beforeId);
     res.json({ ok: true, items: await enrichMessageAuthors(items), hasMore });
   });
+
   r.post(
     "/api/messenger/send",
     authGuard,
@@ -258,12 +271,26 @@ function messengerRoutes() {
       const files = Array.isArray(req.files) ? req.files : [];
       const rejected = Array.isArray(req._rejectedFiles) ? req._rejectedFiles : [];
       const replyId = String(req.body.reply_to || "").trim();
+
       if (!text && !files.length) {
         if (rejected.length) {
           return res.status(400).json({ ok: false, error: "FILE_TYPE_NOT_ALLOWED", rejected });
         }
         return res.status(400).json({ ok: false, error: "EMPTY" });
       }
+
+      // FIX: Validate magic bytes for image files after upload
+      for (const f of files) {
+        const ext = fileExt(f.filename);
+        const mime = f.mimetype;
+        if (mime.startsWith("image/") || [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"].includes(ext)) {
+          if (!checkMagicBytes(f.path, mime)) {
+            try { unlinkSync(f.path); } catch {}
+            return res.status(400).json({ ok: false, error: "INVALID_IMAGE_FILE", file: f.originalname });
+          }
+        }
+      }
+
       const attachments = files.map((f) => ({
         url: "/api/messenger/file/" + f.filename,
         name: decodeIfNeeded(f.originalname || f.filename),
@@ -271,6 +298,7 @@ function messengerRoutes() {
         mime: f.mimetype,
         kind: kindOf(f.mimetype, f.originalname)
       }));
+
       let replyTo = null;
       if (replyId) {
         const target = readLastMessages(1e3).items.find((m) => String(m.id) === replyId);
@@ -278,26 +306,30 @@ function messengerRoutes() {
           replyTo = {
             id: target.id,
             steamid64: target.steamid64 || "",
-            nick: target.nick || target.steamid64 || "—",
-            text: target.text || (target.attachments?.length ? "Вложение" : "Сообщение")
+            nick: target.nick || target.steamid64 || "\u2014",
+            text: target.text || (target.attachments?.length ? "\u0412\u043b\u043e\u0436\u0435\u043d\u0438\u0435" : "\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435")
           };
         }
       }
+
       const u = await currentMessengerUser(req.session.user || {});
       const msg = appendMessage({
         steamid64: u.steamid64 || "",
-        nick: u.nick || u.steamid64 || "—",
+        nick: u.nick || u.steamid64 || "\u2014",
         role: u.role || "",
         text,
         attachments,
         reply_to: replyTo
       });
+
       if (req.app.locals.broadcastMessenger) {
         req.app.locals.broadcastMessenger({ type: "message", message: msg });
       }
+
       res.json({ ok: true, message: msg, rejected: rejected.length ? rejected : void 0 });
     }
   );
+
   r.delete("/api/messenger/message", authGuard, requirePerm("messenger"), (req, res) => {
     const id = String(req.query.id || req.body?.id || "").trim();
     if (!id) return res.status(400).json({ ok: false, error: "NO_ID" });
@@ -317,16 +349,25 @@ function messengerRoutes() {
     }
     res.json({ ok: true });
   });
+
+  // FIX: Serve files as attachment to prevent XSS, block SVG
   r.get("/api/messenger/file/:name", authGuard, requirePerm("messenger"), (req, res) => {
     const name = String(req.params.name || "");
     if (!/^[a-zA-Z0-9._-]+$/.test(name) || name.includes("..")) return res.status(400).end();
     const p = join(UPLOAD_DIR, name);
     if (!p.startsWith(UPLOAD_DIR) || !existsSync(p)) return res.status(404).end();
+    
+    const ext = fileExt(name);
+    // Block SVG files from being served (XSS prevention)
+    if (ext === ".svg" || ext === ".svgz") return res.status(403).end();
+    
     res.setHeader("Cache-Control", "private, max-age=86400");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    if (name.endsWith(".svg")) res.setHeader("Content-Disposition", "attachment");
+    // FIX: Always serve as attachment to prevent XSS via inline rendering
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
     createReadStream(p).pipe(res);
   });
+
   r.post("/api/messenger/avatars", authGuard, requirePerm("messenger"), (req, res) => {
     const sids = Array.isArray(req.body?.sids) ? req.body.sids : [];
     const out = {};
@@ -338,8 +379,10 @@ function messengerRoutes() {
     }
     res.json({ ok: true, items: out });
   });
+
   return r;
 }
+
 export {
   messengerRoutes as default
 };
