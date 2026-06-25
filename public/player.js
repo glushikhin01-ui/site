@@ -44,6 +44,7 @@
     "User":"#10b981","user":"#10b981"
   };
   const $ = (id) => document.getElementById(id);
+  const donateBalanceEl=$("donateBalance"), donateHistoryBtn=$("donateHistoryBtn");
   function toast(ok, title, text) {
     if (window.UI && UI.toast) { UI.toast({ ok, title, text }); return; }
     const wrap = $("toastWrap"); const el = document.createElement("div");
@@ -212,6 +213,7 @@
       lastseenEl.textContent=d.lastseen? new Date(d.lastseen*1000).toLocaleString("ru-RU"):"—";
       moneyEl.textContent=(d.money||0).toLocaleString("ru-RU");
       const rankName=resolveRank(d); rankEl.textContent=rankName; rankEl.style.color=RANK_COLORS[rankName]||RANK_COLORS[rankName.toLowerCase()]||"#94a3b8"; rankEl.style.fontWeight="800";
+      if(donateBalanceEl) donateBalanceEl.textContent=(d.donate_balance||0).toLocaleString("ru-RU")+" ₽";
       ava.src="./img/noavatar.png";
       fetch(`./api/avatar?sid=${encodeURIComponent(d.steamid64)}`,{cache:"no-store",credentials:"include",headers:{"X-Requested-With":"XMLHttpRequest"}}).then(r2=>r2.json()).then(j=>{ if(j.url) ava.src=j.url; }).catch(()=>{});
       ava.onerror=()=>{ ava.src="./img/noavatar.png"; };
@@ -332,5 +334,6 @@
   function renderPlayerQmenu(items){ if(!playerQmenuTbody) return; if(!items.length){ playerQmenuTbody.innerHTML='<tr><td colspan="4" class="banEmpty">У игрока нет доступа Q-Menu</td></tr>'; return; } playerQmenuTbody.innerHTML=""; for(const item of items){ const tr=document.createElement("tr"); const typeStr = item.access_type === "qmenuplus" ? "Q-Menu+" : "Q-Menu"; const by = item.issued_by || "—"; const when = item.issued_at ? new Date(item.issued_at * 1e3).toLocaleString("ru-RU") : "—"; tr.innerHTML=`<td><strong>${esc(typeStr)}</strong></td><td>${esc(by)}</td><td>${esc(when)}</td><td><button class="btn small danger" data-type="${esc(item.access_type)}">Забрать</button></td>`; tr.querySelector("button")?.addEventListener("click", async () => { if(!hasPerm("give_qmenu")) return toast(false,"Ошибка","Нет прав"); await apiJson("./api/player_qmenu",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"revoke",steamid32:player.steamid,access_type:item.access_type})}); toast(true,"OK","Доступ отозван"); await loadQmenuTab(); }); playerQmenuTbody.appendChild(tr); } }
   if(giveQmenuBtn) giveQmenuBtn.onclick=async()=>{ if(!hasPerm("give_qmenu")) return toast(false,"Ошибка","Нет прав"); await apiJson("./api/player_qmenu",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"give",steamid32:player.steamid,access_type:"qmenu"})}); toast(true,"OK","Q-Menu выдано"); await loadQmenuTab(); };
   if(giveQmenuPlusBtn) giveQmenuPlusBtn.onclick=async()=>{ if(!hasPerm("give_qmenu")) return toast(false,"Ошибка","Нет прав"); await apiJson("./api/player_qmenu",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"give",steamid32:player.steamid,access_type:"qmenuplus"})}); toast(true,"OK","Q-Menu+ выдано"); await loadQmenuTab(); };
+  if(donateHistoryBtn) donateHistoryBtn.onclick=()=>{ if(!hasPerm("view_donate_logs")) return toast(false,"Ошибка","Нет прав"); const q=encodeURIComponent(player?.steamid64||sid); window.open(`/tech/donate?q=${q}`, "_blank"); };
   await load();
 })();

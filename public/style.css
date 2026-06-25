@@ -2602,6 +2602,31 @@ body {
   border-color: rgba(239, 68, 68, .85);
   color: rgba(239, 68, 68, .95);
 }
+.badge.donate {
+  border-color: rgba(251, 191, 36, .85);
+  color: rgba(251, 191, 36, .95);
+  background: rgba(251, 191, 36, .10);
+}
+.badge.donateTopup {
+  border-color: rgba(34, 197, 94, .5);
+  color: var(--ok);
+  background: rgba(34, 197, 94, .12);
+}
+.badge.donatePurchase {
+  border-color: rgba(239, 68, 68, .5);
+  color: var(--danger);
+  background: rgba(239, 68, 68, .12);
+}
+.badge.donateReward {
+  border-color: rgba(251, 191, 36, .5);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, .12);
+}
+.badge.donateOther {
+  border-color: var(--border);
+  color: var(--muted);
+  background: rgba(255, 255, 255, .05);
+}
 :root:not(.role-KP) .kp-only {
   display: none !important;
 }

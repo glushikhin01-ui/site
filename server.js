@@ -33,8 +33,10 @@ import zbtAccessRoutes from "./routes/zbt_access.js";
 import promosRoutes from "./routes/promos.js";
 import locksRoutes from "./routes/locks.js";
 import moneyLogsRoutes from "./routes/money_logs.js";
+import donateLogsRoutes from "./routes/donate_logs.js";
 import techGangsRoutes from "./routes/tech_gangs.js";
 import { WebSocketServer } from "ws";
+import proxyAddr from "proxy-addr";
 import { hasPerm } from "./lib/roles.js";
 import {
   loadLocks,
@@ -70,10 +72,11 @@ app.disable("x-powered-by");
 
 // FIX: trust proxy with verification (only trust local proxies)
 const TRUSTED_PROXIES = ["loopback", "linklocal", "uniquelocal"];
+const trustedProxyCheck = proxyAddr.compile(TRUSTED_PROXIES);
 app.set("trust proxy", (ip) => {
-  // In production, you should configure this more strictly (e.g., list of known proxy IPs)
+  // In production, only trust loopback/linklocal/uniquelocal. Configure known proxy IPs if behind a CDN.
   if (process.env.NODE_ENV === "production") {
-    return TRUSTED_PROXIES.some((fn) => fn === ip || require("proxy-addr").compile(fn)(ip));
+    return trustedProxyCheck(ip);
   }
   return true;
 });
@@ -148,6 +151,27 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, error: "TOO_MANY_REQUESTS" },
   skipSuccessfulRequests: true
+});
+
+// FIX: Global request timeout to prevent slow clients / DoS
+const GLOBAL_REQUEST_TIMEOUT_MS = 30 * 1e3;
+app.use((req, res, next) => {
+  req.setTimeout(GLOBAL_REQUEST_TIMEOUT_MS, () => {
+    try {
+      if (!res.headersSent) res.status(503).json({ ok: false, error: "REQUEST_TIMEOUT" });
+    } catch {}
+  });
+  res.setTimeout(GLOBAL_REQUEST_TIMEOUT_MS);
+  next();
+});
+
+// FIX: Extra security headers on top of Helmet
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  next();
 });
 
 // FIX: Add rate limiters for Steam API endpoints
@@ -229,6 +253,7 @@ const LEGACY_REDIRECTS = new Map([
   ["/manage.html", "/manage"],
   ["/tech_money.html", "/tech/money"],
   ["/tech_gangs.html", "/tech/gangs"],
+  ["/tech_donate.html", "/tech/donate"],
   ["/player.html", "/player"]
 ]);
 app.get([...LEGACY_REDIRECTS.keys()], (req, res) => {
@@ -254,6 +279,7 @@ const PAGE_ROUTES = [
   ["/manage/permissions", "permissions.html"],
   ["/tech/money", "tech_money.html"],
   ["/tech/gangs", "tech_gangs.html"],
+  ["/tech/donate", "tech_donate.html"],
   ["/player", "player.html"]
 ];
 for (const [route, file] of PAGE_ROUTES) {
@@ -309,6 +335,7 @@ app.use(promosRoutes());
 app.use(serverSyncRoutes(cfg));
 app.use(locksRoutes());
 app.use(moneyLogsRoutes());
+app.use(donateLogsRoutes());
 app.use(techGangsRoutes());
 
 // Error handler

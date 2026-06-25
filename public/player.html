@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#eab308">
   <script>(function(){try{if(localStorage.getItem("arizona_theme")==="blue")document.documentElement.setAttribute("data-theme","blue")}catch(e){}})();</script>
   <link rel="stylesheet" href="fonts.css?v=3" />
-  <link rel="stylesheet" href="style.css?v=28" />
+  <link rel="stylesheet" href="style.css?v=31" />
 </head>
 <body>
 
@@ -110,6 +110,11 @@
             <button class="btn plus small" id="rankPlusInline" data-perm-disable="set_rank" data-no-perm-text="Нет прав" title="Ранг игрока">+</button>
           </div>
 
+          <div class="row rowPlus">
+            <div class="k">Донат рубли</div>
+            <div class="v" id="donateBalance">—</div>
+            <button class="btn small" id="donateHistoryBtn" data-perm="view_donate_logs" title="История донат операций игрока">История</button>
+          </div>
 
           <div class="row rowPlus" id="warnRow">
             <div class="k">Варны</div>
@@ -368,9 +373,9 @@
 </div>
 </div>
 
-<script src="ui.js?v=10"></script>
-<script src="auth.js?v=3"></script>
-<script src="player.js?v=6"></script>
+<script src="ui.js?v=13"></script>
+<script src="auth.js?v=8"></script>
+<script src="player.js?v=7"></script>
 <script src="lock_notice.js?v=1"></script>
 </body>
 </html>

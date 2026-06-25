@@ -182,7 +182,7 @@ function makeCard(p) {
     bRank.style.color = c;
   }
   const bTime = document.createElement("span");
-  bTime.className = "badge";
+  bTime.className = "badge playtime";
   bTime.textContent = fmtPlaytime(p.playtime);
   badges.appendChild(bOn);
   if (p.chsp || p.chsp_active) {
@@ -232,9 +232,9 @@ function updateCard(el, p) {
       }
     }
   }
-  const bTime = el.querySelector(".badge:not(.on):not(.rank):not(.chsp)");
+  const bTime = el.querySelector(".badge.playtime");
   const newTime = fmtPlaytime(p.playtime);
-  if (bTime && bTime.textContent !== newTime && !bTime.classList.contains("rank") && !bTime.classList.contains("on")) {
+  if (bTime && bTime.textContent !== newTime) {
     bTime.textContent = newTime;
   }
   const img = el.querySelector("img[data-sid]");

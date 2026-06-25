@@ -19,6 +19,30 @@ function playersRoutes() {
       return "NOT_SET";
     }
   }
+  async function tableExists(pool, table) {
+    try {
+      const [rows] = await pool.query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1", [table]);
+      return rows.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  async function fetchDonateBalances(pool, sids) {
+    if (!await tableExists(pool, "GMDonate_Players") || !sids.length) return new Map();
+    try {
+      const ph = sids.map(() => "?").join(",");
+      const [rows] = await pool.query(
+        `SELECT CAST(SteamID64 AS CHAR) AS SteamID64, Balance FROM GMDonate_Players WHERE SteamID64 IN (${ph})`,
+        sids
+      );
+      const map = new Map();
+      for (const row of rows) map.set(String(row.SteamID64), Number(row.Balance || 0));
+      return map;
+    } catch (e) {
+      console.error("fetchDonateBalances error:", e.message);
+      return new Map();
+    }
+  }
   r.get("/api/players", authGuard, requirePerm("view_players"), async (req, res) => {
     try {
       const pool = db();
@@ -94,6 +118,11 @@ function playersRoutes() {
           lastseen: Math.floor(Date.now() / 1e3),
           chsp: false
         });
+      }
+      const allSids = list.map((p) => p.steamid64).filter(Boolean);
+      const donateMap = await fetchDonateBalances(pool, allSids);
+      for (const p of list) {
+        p.donate_balance = donateMap.get(p.steamid64) || 0;
       }
       res.json({ ok: true, items: list });
     } catch (e) {

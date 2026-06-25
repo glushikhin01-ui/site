@@ -11,8 +11,9 @@ const PAGE_LABELS = {
  "/player": "Профиль игрока",
  "/manage/locks": "Блокировки",
  "/manage": "Управление",
- "/tech/money": "Операции с деньгами",
- "/tech/gangs": "Банды"
+  "/tech/money": "Операции с деньгами",
+  "/tech/gangs": "Банды",
+  "/tech/donate": "Донат информация"
 };
 function pageLabel(key) {
  return PAGE_LABELS[key] || (key || "").replace(/\.html$/i, "");
@@ -190,6 +191,7 @@ function currentPageKey() {
   "/manage/permissions": "permissions.html",
   "/tech/money": "tech_money.html",
   "/tech/gangs": "tech_gangs.html",
+  "/tech/donate": "tech_donate.html",
   "/player": "player.html",
   "/login": "login.html"
  };
@@ -218,6 +220,7 @@ document.addEventListener("DOMContentLoaded", async () => {
  if (path === "/manage" && !(hasPerm("manage_users") || hasPerm("manage_permissions") || role === "KP")) return deny();
  if (path === "/tech/money" && !hasPerm("view_money_logs")) return deny();
  if (path === "/tech/gangs" && !hasPerm("view_money_logs")) return deny();
+ if (path === "/tech/donate" && !hasPerm("view_donate_logs")) return deny();
  if (path === "/zbt-access" && !hasPerm("manage_zbt_access")) return deny();
  if (path === "/admin-logs" && !hasPerm("view_admin_logs")) return deny();
  if (path === "/blacklist" && !hasPerm("view_blacklist")) return deny();

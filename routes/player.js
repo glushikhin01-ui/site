@@ -164,6 +164,16 @@ function playerRoutes(cfg, steamApiLimiter) {
       `, [svId, sid64, sid32]);
       if (!rows.length) return res.status(404).json({ ok: false, error: "NOT_FOUND" });
       const row = rows[0];
+
+      let donateBalance = 0;
+      try {
+        if (await tableExists(pool, "GMDonate_Players")) {
+          const [drows] = await pool.query("SELECT Balance FROM GMDonate_Players WHERE SteamID64 = ? LIMIT 1", [sid64]);
+          donateBalance = Number(drows[0]?.Balance || 0);
+        }
+      } catch (e) {
+        console.error("donate balance query error:", e.message);
+      }
       const onRaw = online[sid64];
       const fresh = isOnlineEntryFresh(onRaw);
       const on = fresh ? onRaw : null;
@@ -239,6 +249,7 @@ function playerRoutes(cfg, steamApiLimiter) {
         rank: String(row.rank_id || ""),
         rank_id: String(row.rank_id || ""),
         money: parseInt(row.money || 0, 10),
+        donate_balance: donateBalance,
         playtime: parseInt(row.playtime || 0, 10),
         firstjoined: parseInt(row.firstjoined || 0, 10),
         lastseen: parseInt(row.lastseen || 0, 10),

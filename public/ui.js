@@ -318,7 +318,7 @@
     // Пользователи / Права рангов / Блокировки теперь живут внутри единой вкладки «Управление».
     nav.querySelectorAll('a[href="/manage/users"],a[href="/manage/permissions"],a[href="/manage/locks"]').forEach((a) => a.remove());
     // Пересобираем тех.раздел, чтобы заголовок не оказывался снизу под ссылками.
-    nav.querySelectorAll('a[href="/tech/money"],a[href="/tech/gangs"],.navSectionTitle').forEach((el) => el.remove());
+    nav.querySelectorAll('a[href="/tech/money"],a[href="/tech/gangs"],a[href="/tech/donate"],.navSectionTitle').forEach((el) => el.remove());
     const logout = nav.querySelector("#logoutBtn")?.closest(".navItem") || nav.querySelector("#logoutBtn");
     function addLink(id, text, href, attrs) {
       if (nav.querySelector(`[data-auto-nav="${id}"]`) || nav.querySelector(`a[href="${href}"]`)) return null;
@@ -338,6 +338,7 @@
     nav.insertBefore(title, logout || null);
     addLink("tech-money", "Операции с деньгами", "/tech/money", { "data-perm": "view_money_logs", "data-lock-page": "/tech/money" });
     addLink("tech-gangs", "Банды", "/tech/gangs", { "data-perm": "view_money_logs", "data-lock-page": "/tech/gangs" });
+    addLink("tech-donate", "Донат", "/tech/donate", { "data-perm": "view_donate_logs", "data-lock-page": "/tech/donate" });
     syncManagementLinks();
   }
   window.addEventListener("perms:updated", syncManagementLinks);

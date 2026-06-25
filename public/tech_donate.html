@@ -4,7 +4,7 @@
   <base href="/">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Arizona • Тех.Раздел · Деньги</title>
+  <title>Arizona • Тех.Раздел · Донат информация</title>
   <link rel="icon" type="image/png" href="./img/logo.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#eab308">
@@ -33,27 +33,27 @@
   </aside>
   <main class="main">
     <div class="topbar">
-      <div><div class="h1">Тех.Раздел · Деньги</div><div class="muted">Все операции: ник, SteamID64, действие, сумма и участник перевода</div></div>
+      <div><div class="h1">Тех.Раздел · Донат информация</div><div class="muted">Все операции GMDonate: пополнения, покупки, награды и списания</div></div>
       <div class="tools">
-        <input id="moneyQ" class="input" placeholder="Ник / SteamID / описание" />
-        <select id="moneyType" class="select"><option value="all">Все операции</option><option value="transfer">Только переводы</option><option value="income">Пополнения</option><option value="expense">Списания</option></select>
-        <select id="moneyPerPage" class="select"><option value="50">50</option><option value="100">100</option><option value="20">20</option></select>
-        <button id="moneyRefresh" class="btn">Обновить</button>
+        <input id="donateQ" class="input" placeholder="Ник / SteamID / описание" />
+        <select id="donateType" class="select"><option value="all">Все операции</option><option value="topup">Пополнения</option><option value="purchase">Покупки</option><option value="reward">Награды</option><option value="other">Другое</option></select>
+        <select id="donatePerPage" class="select"><option value="50">50</option><option value="100">100</option><option value="20">20</option></select>
+        <button id="donateRefresh" class="btn">Обновить</button>
       </div>
     </div>
     <div class="card">
-      <div class="muted" id="moneyCount">Загрузка...</div>
+      <div class="muted" id="donateCount">Загрузка...</div>
       <div class="tableWrap moneyTableWrap">
-        <table class="table moneyTable"><thead><tr><th>Время</th><th>Игрок</th><th>SteamID64</th><th>Что сделал</th><th>Сумма</th><th>Кому / от кого</th><th>Описание</th></tr></thead><tbody id="moneyTbody"><tr><td colspan="7" class="banEmpty">Загрузка...</td></tr></tbody></table>
+        <table class="table moneyTable"><thead><tr><th>Время</th><th>Игрок</th><th>SteamID64</th><th>Тип операции</th><th>Сумма</th><th>Текущий баланс</th><th>Описание / предмет</th><th>От кого</th></tr></thead><tbody id="donateTbody"><tr><td colspan="8" class="banEmpty">Загрузка...</td></tr></tbody></table>
       </div>
-      <div class="pager"><button class="btn" id="moneyPrev">←</button><div class="muted" id="moneyPage">Страница 1/1</div><button class="btn" id="moneyNext">→</button></div>
-      <div class="err" id="moneyErr" style="display:none">Ошибка загрузки операций</div>
+      <div class="pager"><button class="btn" id="donatePrev">←</button><div class="muted" id="donatePage">Страница 1/1</div><button class="btn" id="donateNext">→</button></div>
+      <div class="err" id="donateErr" style="display:none">Ошибка загрузки донат операций</div>
     </div>
   </main>
 </div></div>
 <script src="ui.js?v=13"></script>
 <script src="auth.js?v=8"></script>
-<script src="tech_money.js?v=2"></script>
+<script src="tech_donate.js?v=1"></script>
 <script src="lock_notice.js?v=1"></script>
 </body>
 </html>
