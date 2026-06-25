@@ -8052,3 +8052,45 @@ html.embeddedPage .topbar { margin-top: 0; }
   .splitPageItem { flex-direction: column; }
   .splitSwitches { min-width: 0; width: 100%; }
 }
+
+/* Donate tab */
+.donateHero{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(135deg,rgba(37,99,235,.18),rgba(168,85,247,.12));}
+.donateCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:12px}
+.donateItemCard{position:relative;overflow:hidden;border:1px solid rgba(90,120,255,.22);border-radius:16px;background:linear-gradient(145deg,rgba(20,24,38,.96),rgba(31,35,52,.94));padding:14px;box-shadow:0 12px 26px rgba(0,0,0,.18)}
+.donateItemCard:before{content:"";position:absolute;inset:-45% auto auto -25%;width:120px;height:120px;border-radius:50%;background:rgba(59,130,246,.18);filter:blur(10px)}
+.donateItemTop{position:relative;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.donateItemName{font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
+.donateItemUid{position:relative;margin-top:7px;color:var(--muted);font-size:12px;word-break:break-all}
+.donateInvBadge{white-space:nowrap;border:1px solid rgba(125,160,255,.28);background:rgba(40,70,140,.25);color:#c7d2fe;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:700}
+.donateItemActions{position:relative;margin-top:12px;display:flex;gap:8px;justify-content:flex-end}
+.donateStatusGood{color:#86efac;font-weight:800}.donateStatusBad{color:#fca5a5;font-weight:800}
+
+/* Performance patch: убираем самые тяжёлые эффекты, которые жрут GPU/RAM в Chromium */
+:root {
+  --shadow: 0 2px 10px rgba(0,0,0,.22) !important;
+  --shadow2: 0 2px 10px rgba(0,0,0,.22) !important;
+  --shadow-card: 0 2px 10px rgba(0,0,0,.20) !important;
+  --accent-glow: rgba(var(--accent-rgb), .12) !important;
+}
+*, *::before, *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .08s !important;
+  scroll-behavior: auto !important;
+}
+.card, .cardIn, .modalCard, .toast, .nav, .topbar, .sidebar, .profileLeft, .profileRight,
+.tableWrap, .donateItemCard, .locksTopBanner, .messengerPanel, .msgBubble {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: var(--shadow) !important;
+}
+.cardIn, .tableWrap, .donateItemCard, .modelGrid > *, .permGroup, .roleItem {
+  contain: layout paint style;
+}
+.cardIn, .donateItemCard, .tableWrap {
+  content-visibility: auto;
+  contain-intrinsic-size: 260px;
+}
+.skeleton, .skel, [class*="skeleton"] {
+  animation: none !important;
+}

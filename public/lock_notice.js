@@ -425,7 +425,13 @@
 
   function startPolling() {
     if (_pollTimer) clearInterval(_pollTimer);
-    _pollTimer = setInterval(fetchState, POLL_MS);
+    _pollTimer = setInterval(() => {
+      if (document.hidden) return;
+      fetchState();
+    }, POLL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) fetchState();
+    });
   }
 
   function injectStyles() {

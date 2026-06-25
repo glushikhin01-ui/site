@@ -26,6 +26,9 @@ const FALLBACK_LABELS = {
   view_stats: "Статистика",
   view_blacklist: "Чёрный список (ЧСП)",
   view_admin_logs: "Логи админов",
+  view_donate_logs: "Тех.раздел: донат информация",
+  view_player_donate: "Вкладка Донат в профиле",
+  manage_player_donate: "Забирать/обнулять F6-инвентарь",
   kick: "Кик",
   ban: "Бан / перма",
   unban: "Разбан",
@@ -50,8 +53,8 @@ const FALLBACK_LABELS = {
   raw_console: "Любые консольные команды (опасно)"
 };
 const FALLBACK_GROUPS = [
-  { key: "view", title: "Просмотр", perms: ["view_players", "view_profile", "view_bans", "view_stats", "view_blacklist", "view_admin_logs"] },
-  { key: "actions", title: "Действия с игроками", perms: ["kick", "ban", "unban", "adminmode", "give_money", "set_rank"] },
+  { key: "view", title: "Просмотр", perms: ["view_players", "view_profile", "view_bans", "view_stats", "view_blacklist", "view_admin_logs", "view_donate_logs", "view_player_donate"] },
+  { key: "actions", title: "Действия с игроками", perms: ["kick", "ban", "unban", "adminmode", "give_money", "set_rank", "manage_player_donate"] },
   { key: "content", title: "Контент и ЧСП", perms: ["manage_blacklist", "give_model", "manage_models", "give_weapon", "manage_weapons", "give_job", "manage_jobs", "give_qmenu", "give_access", "view_promos", "manage_promos"] },
   { key: "comms", title: "Коммуникации", perms: ["messenger"] },
   { key: "admin", title: "Администрирование (опасное)", perms: ["manage_zbt_access", "manage_users", "manage_permissions", "raw_console"] }

@@ -268,6 +268,77 @@ function playerRoutes(cfg, steamApiLimiter) {
     }
   });
 
+  r.get("/api/player_donate", authGuard, requirePerm("view_player_donate"), async (req, res) => {
+    try {
+      const sid64 = String(req.query.sid || "").trim();
+      if (!sid64 || !/^\d{17}$/.test(sid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
+      const pool = db();
+      const sid32 = steamid64ToSteamid(sid64);
+      const items = [];
+      const transactions = [];
+      let gmBalance = 0;
+      let inventoryApiError = "";
+
+      if (await tableExists(pool, "GMDonate_Players")) {
+        try {
+          const [rows] = await pool.query("SELECT Balance FROM GMDonate_Players WHERE SteamID64 = ? LIMIT 1", [sid64]);
+          gmBalance = Number(rows[0]?.Balance || 0);
+        } catch (e) { console.error("GMDonate_Players error:", e.message); }
+      }
+
+      // F6 inventory mirror from server addon processor_sv.lua -> GMDonate_Inventory.
+      if (await tableExists(pool, "GMDonate_Inventory")) {
+        try {
+          const [rows] = await pool.query(`
+            SELECT InvID, ItemUID, ItemName, UpdatedAt
+            FROM GMDonate_Inventory
+            WHERE SteamID64 = ?
+            ORDER BY UpdatedAt DESC, InvID DESC
+            LIMIT 500
+          `, [sid64]);
+          for (const r2 of rows) items.push({
+            source: "GMDonate_Inventory",
+            inv_id: String(r2.InvID || ""),
+            name: fixCrazyNick(r2.ItemName || r2.ItemUID || "Предмет"),
+            item_id: String(r2.ItemUID || ""),
+            type: "Инвентарь F6",
+            status: "В инвентаре",
+            sum: 0,
+            time: parseInt(r2.UpdatedAt || 0, 10)
+          });
+        } catch (e) {
+          inventoryApiError = e.message || "GMDonate_Inventory_ERROR";
+          console.error("GMDonate_Inventory error:", e.message);
+        }
+      } else {
+        inventoryApiError = "GMDonate_Inventory table not found. Обнови processor_sv.lua на сервере и выполни igs_sync_online_inventories / перезайди игроком.";
+      }
+
+      if (await tableExists(pool, "GMDonate_Transactions")) {
+        try {
+          const [rows] = await pool.query(`
+            SELECT TxHash, Sum, Note, TxTime
+            FROM GMDonate_Transactions
+            WHERE SteamID64 = ?
+            ORDER BY TxTime DESC, TxHash DESC
+            LIMIT 50
+          `, [sid64]);
+          for (const r2 of rows) transactions.push({
+            sum: Number(r2.Sum || 0),
+            note: decodeIfNeeded(r2.Note || "").trim() || "—",
+            time: parseInt(r2.TxTime || 0, 10)
+          });
+        } catch (e) { console.error("GMDonate_Transactions history error:", e.message); }
+      }
+
+      res.json({ ok: true, steamid64: sid64, steamid: sid32, gm_balance: gmBalance, inventory_api_error: inventoryApiError, items, transactions });
+    } catch (e) {
+      console.error("player donate error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
+
   // FIX: Rate limit VAC check endpoint to prevent Steam API abuse
   r.get("/api/vac_check", authGuard, requirePerm("view_profile"), steamApiLimiter, async (req, res) => {
     const sid64 = String(req.query.sid || "").trim();

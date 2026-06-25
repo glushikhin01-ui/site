@@ -87,6 +87,7 @@
           <button class="tabBtn" id="tabJobs" data-perm="give_job">Профессии</button>
           <button class="tabBtn" id="tabAccess" data-perm="give_access">Доступы</button>
           <button class="tabBtn" id="tabQmenu" data-perm="give_qmenu">Q-Menu</button>
+          <button class="tabBtn" id="tabDonate" data-perm="view_player_donate">Донат</button>
         </div>
 
         <div class="tabPanel active" id="panelProfile">
@@ -367,6 +368,27 @@
           </div>
         </div>
 
+        <div class="tabPanel" id="panelDonate">
+          <div class="donateHero cardIn outlineBlue">
+            <div>
+              <div class="h2">F6-инвентарь игрока</div>
+              <div class="muted" id="donateSummary" style="margin-top:6px">Загрузка...</div>
+            </div>
+            <div class="modelActions">
+              <button class="btn small danger" id="donateClearBtn" data-perm="manage_player_donate" data-lock-perm="manage_player_donate">Обнулить всё</button>
+              <button class="btn small" id="donateReloadBtn">Обновить</button>
+            </div>
+          </div>
+
+          <div class="cardIn outlineBlue" style="margin-top:12px">
+            <div class="h2">Предметы F6</div>
+            <div class="muted" style="margin-top:6px">Все предметы, которые сейчас лежат в F6-инвентаре игрока.</div>
+            <div class="donateCards" id="donateActiveGrid">
+              <div class="banEmpty">Загрузка...</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
@@ -375,7 +397,7 @@
 
 <script src="ui.js?v=13"></script>
 <script src="auth.js?v=8"></script>
-<script src="player.js?v=7"></script>
+<script src="player.js?v=10"></script>
 <script src="lock_notice.js?v=1"></script>
 </body>
 </html>

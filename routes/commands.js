@@ -46,7 +46,8 @@ const ALLOWED_COMMANDS = [
   
   { perm: "give_job", pattern: /^ba adddonate\b/ },
   { perm: "give_job", pattern: /^ba (removedonate|takedonate|del_donate)\b/ },
-  { perm: "manage_promos", pattern: /^promo_/ }
+  { perm: "manage_promos", pattern: /^promo_/ },
+  { perm: "manage_player_donate", pattern: /^igs_(delete_inventory_item|clear_inventory)\b/ }
 ];
 
 function resolveCommandPerm(text) {

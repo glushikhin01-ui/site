@@ -52,13 +52,13 @@
     el.innerHTML = `<div class="toastTitle">${title}</div><div class="toastText">${text}</div>`;
     wrap.appendChild(el); setTimeout(() => el.remove(), 3000);
   }
-  function modal({ title, body, onOk }) {
+  function modal({ title, body, onOk, noReload = false }) {
     const ov = document.createElement("div"); ov.className = "modalOverlay";
     const card = document.createElement("div"); card.className = "modalCard";
     card.innerHTML = `<div class="modalTitle">${title}</div><div class="modalBody"></div><div class="modalActions"><button class="btn" id="mCancel">Отмена</button><button class="btn blue" id="mOk">OK</button></div>`;
     card.querySelector(".modalBody").appendChild(body); ov.appendChild(card); document.body.appendChild(ov);
     card.querySelector("#mCancel").onclick = () => ov.remove();
-    card.querySelector("#mOk").onclick = async () => { try { await onOk(); ov.remove(); setTimeout(() => load(), 2000); } catch (error) { toast(false, "Ошибка", error.message || "Неизвестная ошибка"); } };
+    card.querySelector("#mOk").onclick = async () => { try { await onOk(); ov.remove(); if (!noReload) setTimeout(() => load(), 2000); } catch (error) { toast(false, "Ошибка", error.message || "Неизвестная ошибка"); } };
   }
   async function sendCommand(text) {
     const r = await fetch("./api/command", { method: "POST", body: JSON.stringify({ type: "console", text }), cache: "no-store", credentials: "include", headers: { "Content-Type": "application/json","X-Requested-With": "XMLHttpRequest" }});
@@ -193,6 +193,7 @@
   }
 
   async function load(){
+    const keepScroll = panelDonate?.classList.contains("active") ? window.scrollY : null;
     apiStatus.textContent="API: загрузка...";
     try{
       const r=await fetch(`./api/player?sid=${encodeURIComponent(sid)}&_=${Date.now()}`,{cache:"no-store",credentials:"include",headers:{"X-Requested-With":"XMLHttpRequest"}});
@@ -219,9 +220,10 @@
       ava.onerror=()=>{ ava.src="./img/noavatar.png"; };
       dot.classList.toggle("on",d.online);
       renderBans(d.bans||[]); renderWarns(d.warns||[]);
-      checkVACBans();
+      if (!window.__vacCheckedOnce) { window.__vacCheckedOnce = true; checkVACBans(); }
       if(autoRefreshInterval) clearInterval(autoRefreshInterval);
-      autoRefreshInterval=setInterval(()=>load(), d.online?10000:30000);
+      autoRefreshInterval=setInterval(()=>{ if(!document.hidden) load(); }, d.online?15000:45000);
+      if (keepScroll !== null) requestAnimationFrame(() => window.scrollTo(0, keepScroll));
     }catch(e){ apiStatus.textContent="API: ERROR"; toast(false,"Ошибка","Не удалось загрузить данные игрока"); console.error(e); }
   }
   let banList=[], banPage=1; const BANS_PER_PAGE=5;
@@ -245,19 +247,21 @@
   cspBtn.onclick=()=>{ if(cspBtn.disabled) return; const reasonBox=document.createElement("textarea"); reasonBox.className="modalTextarea"; reasonBox.placeholder="Причина занесения в ЧСП (можно оставить пусто)"; reasonBox.rows=4; modal({ title:"Занесение в ЧСП", body:reasonBox, onOk: async()=>{ const r=(reasonBox.value||"").trim(); const params=new URLSearchParams(); params.append("action","add"); params.append("steamid64",String(player.steamid64||"")); params.append("ip",String(player.ip||"")); params.append("nickname",String(player.nick||"")); params.append("reason",r); const rr=await fetch("./api/chsp_action",{method:"POST",headers:{"X-Requested-With":"XMLHttpRequest","Content-Type":"application/x-www-form-urlencoded"},body:params.toString(),cache:"no-store",credentials:"include"}); const jj=await rr.json().catch(()=>null); if(!rr.ok||!jj||!jj.ok) throw new Error(jj?.error||"HTTP "+rr.status); toast(true,"Успех","Игрок занесен в ЧСП"); }}); };
   cspRemoveBtn.onclick=()=>{ if(cspRemoveBtn.disabled) return; const div=document.createElement("div"); div.innerHTML=`<div class="muted">Подтвердите действие</div><div style="margin-top:10px"><div><strong>Игрок:</strong> ${escapeHtml(player.nick)}</div><div style="margin-top:6px"><strong>Вынести из ЧСП</strong></div></div>`; modal({ title:"Вынесение ЧСП", body:div, onOk: async()=>{ const params=new URLSearchParams(); params.append("action","remove"); params.append("steamid64",String(player.steamid64||"")); params.append("ip",String(player.ip||"")); const rr=await fetch("./api/chsp_action",{method:"POST",headers:{"X-Requested-With":"XMLHttpRequest","Content-Type":"application/x-www-form-urlencoded"},body:params.toString(),cache:"no-store",credentials:"include"}); const jj=await rr.json().catch(()=>null); if(!rr.ok||!jj||!jj.ok) throw new Error(jj?.error||"HTTP "+rr.status); toast(true,"OK","Игрок вынесен из ЧСП"); setTimeout(load,600);} }); };
   
-  const tabProfile=document.getElementById("tabProfile"), tabModels=document.getElementById("tabModels"), tabWeapons=document.getElementById("tabWeapons"), tabJobs=document.getElementById("tabJobs"), tabAccess=document.getElementById("tabAccess"), tabQmenu=document.getElementById("tabQmenu");
-  const panelProfile=document.getElementById("panelProfile"), panelModels=document.getElementById("panelModels"), panelWeapons=document.getElementById("panelWeapons"), panelJobs=document.getElementById("panelJobs"), panelAccess=document.getElementById("panelAccess"), panelQmenu=document.getElementById("panelQmenu");
-  let modelsLoadedOnce=false, weaponsLoadedOnce=false, jobsLoadedOnce=false, accessLoadedOnce=false, qmenuLoadedOnce=false;
+  const tabProfile=document.getElementById("tabProfile"), tabModels=document.getElementById("tabModels"), tabWeapons=document.getElementById("tabWeapons"), tabJobs=document.getElementById("tabJobs"), tabAccess=document.getElementById("tabAccess"), tabQmenu=document.getElementById("tabQmenu"), tabDonate=document.getElementById("tabDonate");
+  const panelProfile=document.getElementById("panelProfile"), panelModels=document.getElementById("panelModels"), panelWeapons=document.getElementById("panelWeapons"), panelJobs=document.getElementById("panelJobs"), panelAccess=document.getElementById("panelAccess"), panelQmenu=document.getElementById("panelQmenu"), panelDonate=document.getElementById("panelDonate");
+  let modelsLoadedOnce=false, weaponsLoadedOnce=false, jobsLoadedOnce=false, accessLoadedOnce=false, qmenuLoadedOnce=false, donateLoadedOnce=false;
   const canSeeModelsNow=()=> hasPerm("give_model")||hasPerm("manage_models");
   const canSeeWeaponsNow=()=> hasPerm("give_weapon")||hasPerm("manage_weapons");
   const canSeeJobsNow=()=> hasPerm("give_job")||hasPerm("manage_jobs");
   const canSeeQmenuNow=()=> hasPerm("give_qmenu");
   const canSeeAccessNow=()=> hasPerm("give_access");
+  const canSeeDonateNow=()=> hasPerm("view_player_donate")||hasPerm("manage_player_donate");
   function syncVisibility(){ const canM=canSeeModelsNow(); if(tabModels) tabModels.style.display=canM?"":"none"; if(panelModels) panelModels.style.display=canM?"":"none"; if(!canM && panelModels?.classList.contains("active")) setActiveTab("profile");
     const canW=canSeeWeaponsNow(); if(tabWeapons) tabWeapons.style.display=canW?"":"none"; if(panelWeapons) panelWeapons.style.display=canW?"":"none"; if(!canW && panelWeapons?.classList.contains("active")) setActiveTab("profile");
     const canJ=canSeeJobsNow(); if(tabJobs) tabJobs.style.display=canJ?"":"none"; if(panelJobs) panelJobs.style.display=canJ?"":"none"; if(!canJ && panelJobs?.classList.contains("active")) setActiveTab("profile");
     const canA=canSeeAccessNow(); if(tabAccess) tabAccess.style.display=canA?"":"none"; if(panelAccess) panelAccess.style.display=canA?"":"none"; if(!canA && panelAccess?.classList.contains("active")) setActiveTab("profile");
     const canQ=canSeeQmenuNow(); if(tabQmenu) tabQmenu.style.display=canQ?"":"none"; if(panelQmenu) panelQmenu.style.display=canQ?"":"none"; if(!canQ && panelQmenu?.classList.contains("active")) setActiveTab("profile");
+    const canD=canSeeDonateNow(); if(tabDonate) tabDonate.style.display=canD?"":"none"; if(panelDonate) panelDonate.style.display=canD?"":"none"; if(!canD && panelDonate?.classList.contains("active")) setActiveTab("profile");
   }
   window.addEventListener("perms:updated", syncVisibility);
   function setActiveTab(name){
@@ -267,24 +271,28 @@
     if(name==="jobs" && !canSeeJobsNow()) return;
     if(name==="qmenu" && !canSeeQmenuNow()) return;
     if(name==="access" && !canSeeAccessNow()) return;
-    const isProfile=name==="profile", isModels=name==="models", isWeapons=name==="weapons", isJobs=name==="jobs", isAccess=name==="access", isQmenu=name==="qmenu";
+    if(name==="donate" && !canSeeDonateNow()) return;
+    const isProfile=name==="profile", isModels=name==="models", isWeapons=name==="weapons", isJobs=name==="jobs", isAccess=name==="access", isQmenu=name==="qmenu", isDonate=name==="donate";
     tabProfile.classList.toggle("active",isProfile);
     if(tabModels) tabModels.classList.toggle("active",isModels);
     if(tabWeapons) tabWeapons.classList.toggle("active",isWeapons);
     if(tabJobs) tabJobs.classList.toggle("active",isJobs);
     if(tabAccess) tabAccess.classList.toggle("active",isAccess);
     if(tabQmenu) tabQmenu.classList.toggle("active",isQmenu);
+    if(tabDonate) tabDonate.classList.toggle("active",isDonate);
     panelProfile.classList.toggle("active",isProfile);
     if(panelModels) panelModels.classList.toggle("active",isModels);
     if(panelWeapons) panelWeapons.classList.toggle("active",isWeapons);
     if(panelJobs) panelJobs.classList.toggle("active",isJobs);
     if(panelAccess) panelAccess.classList.toggle("active",isAccess);
     if(panelQmenu) panelQmenu.classList.toggle("active",isQmenu);
+    if(panelDonate) panelDonate.classList.toggle("active",isDonate);
     if(isModels && !modelsLoadedOnce){ modelsLoadedOnce=true; loadModelsTab().catch(()=>{}); }
     if(isWeapons && !weaponsLoadedOnce){ weaponsLoadedOnce=true; loadWeaponsTab().catch(()=>{}); }
     if(isJobs && !jobsLoadedOnce){ jobsLoadedOnce=true; loadJobsTab().catch(()=>{}); }
     if(isAccess && !accessLoadedOnce){ accessLoadedOnce=true; loadAccessTab().catch(()=>{}); }
     if(isQmenu && !qmenuLoadedOnce){ qmenuLoadedOnce=true; loadQmenuTab().catch(()=>{}); }
+    if(isDonate && !donateLoadedOnce){ donateLoadedOnce=true; loadDonateTab().catch(()=>{}); }
   }
   if(tabProfile) tabProfile.onclick=()=>setActiveTab("profile");
   if(tabModels) tabModels.onclick=()=>setActiveTab("models");
@@ -292,10 +300,66 @@
   if(tabJobs) tabJobs.onclick=()=>setActiveTab("jobs");
   if(tabAccess) tabAccess.onclick=()=>setActiveTab("access");
   if(tabQmenu) tabQmenu.onclick=()=>setActiveTab("qmenu");
+  if(tabDonate) tabDonate.onclick=()=>setActiveTab("donate");
   syncVisibility(); setTimeout(syncVisibility,0);
   function fmtBytes(n){ n=Number(n||0); if(!n) return "—"; const units=["B","KB","MB","GB"]; let i=0; while(n>=1024&&i<units.length-1){ n/=1024; i++; } return (i===0?Math.round(n):n.toFixed(1))+" "+units[i]; }
   function esc(s){ return (s??"").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
   async function apiJson(url,opts){ const r=await fetch(url, Object.assign({cache:"no-store",credentials:"include",headers:{"X-Requested-With":"XMLHttpRequest"}},opts||{})); const j=await r.json().catch(()=>null); if(!r.ok||!j||!j.ok) throw new Error(j?.error||"HTTP "+r.status); return j; }
+
+  const donateSummary=document.getElementById("donateSummary"), donateActiveGrid=document.getElementById("donateActiveGrid"), donateClearBtn=document.getElementById("donateClearBtn"), donateReloadBtn=document.getElementById("donateReloadBtn");
+  let donateItemsCache = [];
+  function fmtTs(ts){ ts=Number(ts||0); return ts>0?new Date(ts*1000).toLocaleString("ru-RU"):"—"; }
+  function donateStatus(item){ return item.status||"Активировано"; }
+  function canManageDonate(){ return hasPerm("manage_player_donate"); }
+  function donateTakeCommand(invId){ return `igs_delete_inventory_item ${player.steamid64||sid} ${invId}`; }
+  function renderDonateItems(items){
+    if(!donateActiveGrid) return;
+    if(!items.length){ donateActiveGrid.innerHTML=`<div class="banEmpty">Предметов в F6-инвентаре не найдено</div>`; return; }
+    donateActiveGrid.innerHTML="";
+    for(const it of items){
+      const card=document.createElement("div");
+      card.className="donateItemCard";
+      card.dataset.invid = String(it.inv_id || "");
+      card.innerHTML=`
+        <div class="donateItemTop">
+          <div class="donateItemName">${esc(it.name||it.item_id||"—")}</div>
+          <div class="donateInvBadge">#${esc(it.inv_id||"—")}</div>
+        </div>
+        <div class="donateItemUid">UID: ${esc(it.item_id||"—")}</div>
+        <div class="donateItemUid"><span class="donateStatusGood">${esc(donateStatus(it))}</span> • ${esc(fmtTs(it.time))}</div>
+        <div class="donateItemActions">
+          ${canManageDonate()?`<button class="btn small danger" data-take="${esc(it.inv_id||"")}">Удалить</button>`:""}
+        </div>`;
+      card.querySelector("button[data-take]")?.addEventListener("click",()=>takeDonateItem(it));
+      donateActiveGrid.appendChild(card);
+    }
+  }
+  async function takeDonateItem(it){
+    if(!canManageDonate()) return toast(false,"Ошибка","Нет прав");
+    const invId=String(it.inv_id||"").trim();
+    if(!invId) return toast(false,"Ошибка","Нет InvID");
+    const body=document.createElement("div");
+    body.innerHTML=`<div>Удалить предмет из F6-инвентаря?</div><div style="margin-top:8px"><strong>${esc(it.name||it.item_id)}</strong></div><div class="muted" style="margin-top:6px">InvID: ${esc(invId)}</div>`;
+    modal({title:"Удалить донат предмет", body, noReload:true, onOk:async()=>{ await sendCommand(donateTakeCommand(invId)); toast(true,"OK","Команда отправлена"); donateItemsCache = donateItemsCache.filter(x => String(x.inv_id||"") !== invId); renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: ${donateItemsCache.length}`; }});
+  }
+  function clearDonateInventory(){
+    if(!canManageDonate()) return toast(false,"Ошибка","Нет прав");
+    const body=document.createElement("div");
+    body.innerHTML=`<div>Обнулить весь F6-инвентарь игрока?</div><div class="muted" style="margin-top:8px">Будет отправлена команда на сервер: igs_clear_inventory ${esc(player.steamid64||sid)}</div>`;
+    modal({title:"Обнулить F6-инвентарь", body, noReload:true, onOk:async()=>{ await sendCommand(`igs_clear_inventory ${player.steamid64||sid}`); toast(true,"OK","Команда отправлена"); donateItemsCache = []; renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: 0`; }});
+  }
+  async function loadDonateTab(){
+    if(!player) return;
+    if(!canSeeDonateNow()) return;
+    if(donateActiveGrid) donateActiveGrid.innerHTML=`<div class="banEmpty">Загрузка...</div>`;
+    const data=await apiJson("./api/player_donate?sid="+encodeURIComponent(player.steamid64||sid));
+    const items=data.items||[];
+    donateItemsCache = items;
+    if(donateSummary) donateSummary.textContent=`Баланс GMDonate: ${(Number(data.gm_balance)||0).toLocaleString("ru-RU")} | Активировано: ${items.length}${data.inventory_api_error?" | Инвентарь: "+data.inventory_api_error:""}`;
+    renderDonateItems(items);
+  }
+  if(donateClearBtn) donateClearBtn.addEventListener("click", clearDonateInventory);
+  if(donateReloadBtn) donateReloadBtn.addEventListener("click", ()=>loadDonateTab().catch(e=>toast(false,"Ошибка",e.message||"Ошибка загрузки")));
 
   
   const modelSearch=document.getElementById("modelSearch"), showHiddenModels=document.getElementById("showHiddenModels"), addModelBtn=document.getElementById("addModelBtn"), modelsCatalogTbody=document.getElementById("modelsCatalogTbody"), playerModelsTbody=document.getElementById("playerModelsTbody");
