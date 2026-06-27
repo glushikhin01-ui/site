@@ -181,7 +181,7 @@ function donateLogsRoutes() {
           item: parsed.item || "",
           counterparty: parsed.counterparty || "",
           tx_time: row.TxTime ? new Date(row.TxTime * 1000).toISOString() : null,
-          current_balance: Number(row.current_balance || 0),
+          current_balance: Math.round(Number(row.current_balance || 0)),
           raw_json: rawJson
         };
       });

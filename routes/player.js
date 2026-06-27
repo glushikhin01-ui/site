@@ -169,7 +169,7 @@ function playerRoutes(cfg, steamApiLimiter) {
       try {
         if (await tableExists(pool, "GMDonate_Players")) {
           const [drows] = await pool.query("SELECT Balance FROM GMDonate_Players WHERE SteamID64 = ? LIMIT 1", [sid64]);
-          donateBalance = Number(drows[0]?.Balance || 0);
+          donateBalance = Math.round(Number(drows[0]?.Balance || 0));
         }
       } catch (e) {
         console.error("donate balance query error:", e.message);
@@ -268,6 +268,31 @@ function playerRoutes(cfg, steamApiLimiter) {
     }
   });
 
+  r.post("/api/player_donate_action", authGuard, requirePerm("manage_player_donate"), async (req, res) => {
+    try {
+      const sid64 = String(req.body?.sid || req.body?.steamid64 || "").trim();
+      const action = String(req.body?.action || "").trim();
+      const invId = parseInt(req.body?.inv_id || "0", 10);
+      if (!sid64 || !/^\d{17}$/.test(sid64)) return res.status(400).json({ ok: false, error: "BAD_STEAMID64" });
+      if (!["delete", "clear"].includes(action)) return res.status(400).json({ ok: false, error: "BAD_ACTION" });
+      const pool = db();
+      if (!await tableExists(pool, "GMDonate_Inventory")) return res.json({ ok: true, affected: 0 });
+      let affected = 0;
+      if (action === "delete") {
+        if (!invId || invId <= 0) return res.status(400).json({ ok: false, error: "BAD_INV_ID" });
+        const [r2] = await pool.query("DELETE FROM GMDonate_Inventory WHERE SteamID64 = ? AND InvID = ?", [sid64, invId]);
+        affected = r2?.affectedRows || 0;
+      } else {
+        const [r2] = await pool.query("DELETE FROM GMDonate_Inventory WHERE SteamID64 = ?", [sid64]);
+        affected = r2?.affectedRows || 0;
+      }
+      res.json({ ok: true, affected });
+    } catch (e) {
+      console.error("player donate action error:", e.message);
+      res.status(500).json({ ok: false, error: "DB_ERROR" });
+    }
+  });
+
   r.get("/api/player_donate", authGuard, requirePerm("view_player_donate"), async (req, res) => {
     try {
       const sid64 = String(req.query.sid || "").trim();
@@ -282,7 +307,7 @@ function playerRoutes(cfg, steamApiLimiter) {
       if (await tableExists(pool, "GMDonate_Players")) {
         try {
           const [rows] = await pool.query("SELECT Balance FROM GMDonate_Players WHERE SteamID64 = ? LIMIT 1", [sid64]);
-          gmBalance = Number(rows[0]?.Balance || 0);
+          gmBalance = Math.round(Number(rows[0]?.Balance || 0));
         } catch (e) { console.error("GMDonate_Players error:", e.message); }
       }
 

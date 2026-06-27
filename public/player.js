@@ -312,6 +312,13 @@
   function donateStatus(item){ return item.status||"Активировано"; }
   function canManageDonate(){ return hasPerm("manage_player_donate"); }
   function donateTakeCommand(invId){ return `igs_delete_inventory_item ${player.steamid64||sid} ${invId}`; }
+  async function donateMirrorAction(action, invId){
+    await apiJson("./api/player_donate_action",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},
+      body:JSON.stringify({action, sid: player.steamid64||sid, inv_id: invId||0})
+    });
+  }
   function renderDonateItems(items){
     if(!donateActiveGrid) return;
     if(!items.length){ donateActiveGrid.innerHTML=`<div class="banEmpty">Предметов в F6-инвентаре не найдено</div>`; return; }
@@ -340,13 +347,13 @@
     if(!invId) return toast(false,"Ошибка","Нет InvID");
     const body=document.createElement("div");
     body.innerHTML=`<div>Удалить предмет из F6-инвентаря?</div><div style="margin-top:8px"><strong>${esc(it.name||it.item_id)}</strong></div><div class="muted" style="margin-top:6px">InvID: ${esc(invId)}</div>`;
-    modal({title:"Удалить донат предмет", body, noReload:true, onOk:async()=>{ await sendCommand(donateTakeCommand(invId)); toast(true,"OK","Команда отправлена"); donateItemsCache = donateItemsCache.filter(x => String(x.inv_id||"") !== invId); renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: ${donateItemsCache.length}`; }});
+    modal({title:"Удалить донат предмет", body, noReload:true, onOk:async()=>{ await sendCommand(donateTakeCommand(invId)); await donateMirrorAction("delete", invId); toast(true,"OK","Предмет удалён из зеркала и команда отправлена"); donateItemsCache = donateItemsCache.filter(x => String(x.inv_id||"") !== invId); renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: ${donateItemsCache.length}`; }});
   }
   function clearDonateInventory(){
     if(!canManageDonate()) return toast(false,"Ошибка","Нет прав");
     const body=document.createElement("div");
     body.innerHTML=`<div>Обнулить весь F6-инвентарь игрока?</div><div class="muted" style="margin-top:8px">Будет отправлена команда на сервер: igs_clear_inventory ${esc(player.steamid64||sid)}</div>`;
-    modal({title:"Обнулить F6-инвентарь", body, noReload:true, onOk:async()=>{ await sendCommand(`igs_clear_inventory ${player.steamid64||sid}`); toast(true,"OK","Команда отправлена"); donateItemsCache = []; renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: 0`; }});
+    modal({title:"Обнулить F6-инвентарь", body, noReload:true, onOk:async()=>{ await sendCommand(`igs_clear_inventory ${player.steamid64||sid}`); await donateMirrorAction("clear", 0); toast(true,"OK","Инвентарь обнулён в зеркале и команда отправлена"); donateItemsCache = []; renderDonateItems(donateItemsCache); if(donateSummary) donateSummary.textContent = `Баланс GMDonate: ${(Number(player?.donate_balance)||0).toLocaleString("ru-RU")} ₽ | Активировано: 0`; }});
   }
   async function loadDonateTab(){
     if(!player) return;

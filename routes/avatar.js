@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { existsSync, createReadStream, readFileSync } from "fs";
+import { existsSync, createReadStream, readFileSync, statSync, unlinkSync } from "fs";
 import { join, extname } from "path";
 import { randomUUID, createHash } from "crypto";
 import { authGuard } from "../lib/guard.js";
@@ -139,7 +139,7 @@ function avatarRoutes(cfg, steamApiLimiter) {
     if (!p.startsWith(AVATAR_DIR) || !existsSync(p)) return res.status(404).end();
     
     // FIX: add ETag for caching
-    const stat = require("fs").statSync(p);
+    const stat = statSync(p);
     const etag = `"${stat.size}-${stat.mtimeMs}"`;
     res.setHeader("ETag", etag);
     
@@ -175,7 +175,7 @@ function avatarRoutes(cfg, steamApiLimiter) {
       const expectedExt = extname(req.file.filename).toLowerCase();
       if (!checkMagicBytes(req.file.path, expectedExt)) {
         // Delete the invalid file
-        try { require("fs").unlinkSync(req.file.path); } catch {}
+        try { unlinkSync(req.file.path); } catch {}
         return res.status(400).json({ ok: false, error: "INVALID_IMAGE_FILE" });
       }
       
