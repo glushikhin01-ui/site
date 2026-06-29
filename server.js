@@ -697,7 +697,7 @@ async function startDiscordTexBot() {
     poll().catch(() => {});
   }
 
-  client.once("clientReady", () => {
+  client.once("ready", () => {
     console.log(`[TEX BOT] Logged in as ${client.user.tag}`);
     startTelegramPolling().catch((e) => console.error("[TEX TG] start error:", e.message));
   });

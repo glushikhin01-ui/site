@@ -45,17 +45,18 @@
   };
   const $ = (id) => document.getElementById(id);
   const donateBalanceEl=$("donateBalance"), donateHistoryBtn=$("donateHistoryBtn");
+  function escHtml(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
   function toast(ok, title, text) {
     if (window.UI && UI.toast) { UI.toast({ ok, title, text }); return; }
     const wrap = $("toastWrap"); const el = document.createElement("div");
     el.className = "toast " + (ok ? "ok" : "bad");
-    el.innerHTML = `<div class="toastTitle">${title}</div><div class="toastText">${text}</div>`;
+    el.innerHTML = `<div class="toastTitle">${escHtml(title)}</div><div class="toastText">${escHtml(text)}</div>`;
     wrap.appendChild(el); setTimeout(() => el.remove(), 3000);
   }
   function modal({ title, body, onOk, noReload = false }) {
     const ov = document.createElement("div"); ov.className = "modalOverlay";
     const card = document.createElement("div"); card.className = "modalCard";
-    card.innerHTML = `<div class="modalTitle">${title}</div><div class="modalBody"></div><div class="modalActions"><button class="btn" id="mCancel">Отмена</button><button class="btn blue" id="mOk">OK</button></div>`;
+    card.innerHTML = `<div class="modalTitle">${escHtml(title)}</div><div class="modalBody"></div><div class="modalActions"><button class="btn" id="mCancel">Отмена</button><button class="btn blue" id="mOk">OK</button></div>`;
     card.querySelector(".modalBody").appendChild(body); ov.appendChild(card); document.body.appendChild(ov);
     card.querySelector("#mCancel").onclick = () => ov.remove();
     card.querySelector("#mOk").onclick = async () => { try { await onOk(); ov.remove(); if (!noReload) setTimeout(() => load(), 2000); } catch (error) { toast(false, "Ошибка", error.message || "Неизвестная ошибка"); } };
@@ -183,9 +184,9 @@
     try{
       const response=await fetch(`./api/vac_check?sid=${encodeURIComponent(player.steamid64)}&_=${Date.now()}`,{cache:"no-store",credentials:"include"});
       if(response.ok){ const data=await response.json(); if(data.ok&&data.vac_info){ const vac=data.vac_info; const vacDiv=document.createElement("div"); vacDiv.className="cardIn vac-info"; vacDiv.style.setProperty("--cardin-accent", vac.VACBanned?"#ef4444":"#22c55e");
-        let html=`<div class="h2">Steam информация</div>`; html+=`<div class="row"><div class="k">VAC баны</div><div class="v" style="color:${vac.VACBanned?"#ef4444":"#22c55e"}">${vac.VACBanned?`🔴 ${vac.NumberOfVACBans} бан(ов)`:"🟢 Нет банов"}</div></div>`;
-        if(vac.NumberOfVACBans>0) html+=`<div class="row"><div class="k">Последний бан</div><div class="v">${vac.DaysSinceLastBan>0? vac.DaysSinceLastBan+" дней назад":"Недавно"}</div></div>`;
-        html+=`<div class="row"><div class="k">Game баны</div><div class="v">${vac.NumberOfGameBans}</div></div>`;
+        let html=`<div class="h2">Steam информация</div>`; html+=`<div class="row"><div class="k">VAC баны</div><div class="v" style="color:${vac.VACBanned?"#ef4444":"#22c55e"}">${vac.VACBanned?`🔴 ${escHtml(vac.NumberOfVACBans)} бан(ов)`:"🟢 Нет банов"}</div></div>`;
+        if(vac.NumberOfVACBans>0) html+=`<div class="row"><div class="k">Последний бан</div><div class="v">${escHtml(vac.DaysSinceLastBan)>0? escHtml(vac.DaysSinceLastBan)+" дней назад":"Недавно"}</div></div>`;
+        html+=`<div class="row"><div class="k">Game баны</div><div class="v">${escHtml(vac.NumberOfGameBans)}</div></div>`;
         html+=`<div class="row"><div class="k">Экономический бан</div><div class="v" style="color:${vac.EconomyBan!=="none"?"#ef4444":"#22c55e"}">${vac.EconomyBan!=="none"?"🔴 Забанен":"🟢 Нет"}</div></div>`;
         vacDiv.innerHTML=html; const profileRight=document.querySelector(".profileRight"); if(profileRight){ const existingVac=profileRight.querySelector(".vac-info"); if(existingVac) existingVac.remove(); profileRight.appendChild(vacDiv); }
       }}
